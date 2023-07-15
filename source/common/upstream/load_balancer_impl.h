@@ -390,11 +390,18 @@ private:
    */
   uint32_t tryChooseLocalLocalityHosts(const HostSet& host_set) const;
 
-    /**
+  /**
    * @return combined per-locality information about percentages of local/upstream hosts in each locality.
    * Caller is responsible for de-allocation of the LocalityPercentages struct.
    */
   std::unique_ptr<LocalityPercentages> calculateLocalityPercentages(
+    const HostsPerLocality& local_hosts_per_locality,
+    const HostsPerLocality& upstream_hosts_per_locality);
+
+  /**
+   * Asserts that the class's assumptions about local and upstream HostsPerLocality hold.
+   */
+  void assertLocalityPerHostAssumptions(
     const HostsPerLocality& local_hosts_per_locality,
     const HostsPerLocality& upstream_hosts_per_locality);
 
