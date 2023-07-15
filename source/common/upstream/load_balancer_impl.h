@@ -362,6 +362,17 @@ private:
     LocalityResidual
   };
 
+  struct LocalityPercentages {
+    // The percentage of local hosts in each combined locality
+    // Percentage is stored as integer number and scaled by 10000 multiplier for better precision.
+    absl::FixedArray<uint64_t> local_percentage;
+    // The percentage of upstream hosts in each combined locality
+    // Percentage is stored as integer number and scaled by 10000 multiplier for better precision.
+    absl::FixedArray<uint64_t> upstream_percentage;
+    // The mapping from combined locality index back to upstream locality index
+    absl::FixedArray<uint64_t> upstream_locality_mapping;
+  };
+
   /**
    * Increase per_priority_state_ to at least priority_set.hostSetsPerPriority().size()
    */
@@ -379,12 +390,13 @@ private:
    */
   uint32_t tryChooseLocalLocalityHosts(const HostSet& host_set) const;
 
-  /**
-   * @return (number of hosts in a given locality)/(total number of hosts) in `ret` param.
-   * The result is stored as integer number and scaled by 10000 multiplier for better precision.
-   * Caller is responsible for allocation/de-allocation of `ret`.
+    /**
+   * @return combined per-locality information about percentages of local/upstream hosts in each locality.
+   * Caller is responsible for de-allocation of the LocalityPercentages struct.
    */
-  void calculateLocalityPercentage(const HostsPerLocality& hosts_per_locality, uint64_t* ret);
+  std::unique_ptr<LocalityPercentages> calculateLocalityPercentages(
+    const HostsPerLocality& local_hosts_per_locality,
+    const HostsPerLocality& upstream_hosts_per_locality);
 
   /**
    * Regenerate locality aware routing structures for fast decisions on upstream locality selection.

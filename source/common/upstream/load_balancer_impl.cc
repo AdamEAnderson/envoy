@@ -473,9 +473,8 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
     return;
   }
   HostSet& host_set = *priority_set_.hostSetsPerPriority()[priority];
-  ASSERT(host_set.healthyHostsPerLocality().hasLocalLocality());
-  const size_t num_localities = host_set.healthyHostsPerLocality().get().size();
-  ASSERT(num_localities > 0);
+  const size_t num_upstream_localities = host_set.healthyHostsPerLocality().get().size();
+  ASSERT(num_upstream_localities > 0);
 
   // It is worth noting that all of the percentages calculated are orthogonal from
   // how much load this priority level receives, percentageLoad(priority).
@@ -486,14 +485,11 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
   //
   // Basically, fairness across localities within a priority is guaranteed. Fairness across
   // localities across priorities is not.
-  absl::FixedArray<uint64_t> local_percentage(num_localities);
-  calculateLocalityPercentage(localHostSet().healthyHostsPerLocality(), local_percentage.begin());
-  absl::FixedArray<uint64_t> upstream_percentage(num_localities);
-  calculateLocalityPercentage(host_set.healthyHostsPerLocality(), upstream_percentage.begin());
+  auto locality_percentages = calculateLocalityPercentages(localHostSet().healthyHostsPerLocality(), host_set.healthyHostsPerLocality());
 
   // If we have lower percent of hosts in the local cluster in the same locality,
   // we can push all of the requests directly to upstream cluster in the same locality.
-  if (upstream_percentage[0] >= local_percentage[0]) {
+  if (locality_percentages->upstream_percentage[0] >= locality_percentages->local_percentage[0]) {
     state.locality_routing_state_ = LocalityRoutingState::LocalityDirect;
     return;
   }
@@ -503,7 +499,8 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
   // If we cannot route all requests to the same locality, calculate what percentage can be routed.
   // For example, if local percentage is 20% and upstream is 10%
   // we can route only 50% of requests directly.
-  state.local_percent_to_route_ = upstream_percentage[0] * 10000 / local_percentage[0];
+  // Local percent can be 0% if there are no upstream hosts in the local locality.
+  state.local_percent_to_route_ = locality_percentages->upstream_percentage[0] * 10000 / locality_percentages->local_percentage[0];
 
   // Local locality does not have additional capacity (we have already routed what we could).
   // Now we need to figure out how much traffic we can route cross locality and to which exact
@@ -521,15 +518,16 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
   // residual_capacity: 0 10000 15000
   // Now to find a locality to route (bucket) we could simply iterate over residual_capacity
   // searching where sampled value is placed.
-  state.residual_capacity_.resize(num_localities);
+  state.residual_capacity_.resize(num_upstream_localities);
 
   // Local locality (index 0) does not have residual capacity as we have routed all we could.
   state.residual_capacity_[0] = 0;
-  for (size_t i = 1; i < num_localities; ++i) {
+  for (size_t i = 1; i < num_upstream_localities; ++i) {
+    uint64_t combined_locality_index = locality_percentages->upstream_locality_mapping[i];
     // Only route to the localities that have additional capacity.
-    if (upstream_percentage[i] > local_percentage[i]) {
+    if (locality_percentages->upstream_percentage[combined_locality_index] > locality_percentages->local_percentage[combined_locality_index]) {
       state.residual_capacity_[i] =
-          state.residual_capacity_[i - 1] + upstream_percentage[i] - local_percentage[i];
+          state.residual_capacity_[i - 1] + locality_percentages->upstream_percentage[combined_locality_index] - locality_percentages->local_percentage[combined_locality_index];
     } else {
       // Locality with index "i" does not have residual capacity, but we keep accumulating previous
       // values to make search easier on the next step.
@@ -550,14 +548,6 @@ bool ZoneAwareLoadBalancerBase::earlyExitNonLocalityRouting() {
   // We only do locality routing for P=0.
   HostSet& host_set = *priority_set_.hostSetsPerPriority()[0];
   if (host_set.healthyHostsPerLocality().get().size() < 2) {
-    return true;
-  }
-
-  // lb_local_cluster_not_ok is bumped for "Local host set is not set or it is
-  // panic mode for local cluster".
-  if (!host_set.healthyHostsPerLocality().hasLocalLocality() ||
-      host_set.healthyHostsPerLocality().get()[0].empty()) {
-    stats_.lb_local_cluster_not_ok_.inc();
     return true;
   }
 
@@ -615,19 +605,146 @@ bool LoadBalancerBase::isHostSetInPanic(const HostSet& host_set) const {
   return false;
 }
 
-void ZoneAwareLoadBalancerBase::calculateLocalityPercentage(
-    const HostsPerLocality& hosts_per_locality, uint64_t* ret) {
-  uint64_t total_hosts = 0;
-  for (const auto& locality_hosts : hosts_per_locality.get()) {
-    total_hosts += locality_hosts.size();
+std::unique_ptr<ZoneAwareLoadBalancerBase::LocalityPercentages> ZoneAwareLoadBalancerBase::calculateLocalityPercentages(
+    const HostsPerLocality& local_hosts_per_locality,
+    const HostsPerLocality& upstream_hosts_per_locality) {
+  ENVOY_LOG(trace, "Locality aware load balancer calculateLocalityPercentages() called");
+
+  uint64_t total_local_hosts = 0;
+  for (const auto& locality_hosts : local_hosts_per_locality.get()) {
+    total_local_hosts += locality_hosts.size();
+  }
+  uint64_t total_upstream_hosts = 0;
+  for (const auto& locality_hosts : upstream_hosts_per_locality.get()) {
+    total_upstream_hosts += locality_hosts.size();
+  }
+  
+  ENVOY_LOG(trace, "total_local_hosts: {}", total_local_hosts);
+  ENVOY_LOG(trace, "total_upstream_hosts: {}", total_upstream_hosts);
+
+  auto local_percentage = std::vector<uint64_t>();
+  auto upstream_percentage = std::vector<uint64_t>();
+  absl::FixedArray<uint64_t> upstream_locality_mapping(upstream_hosts_per_locality.get().size());
+
+  // iterate through all localities in the upstream and local cluster in sorted order
+  // and calculate percentage of hosts in each locality.
+  auto local_it = local_hosts_per_locality.get().begin();
+  auto upstream_it = upstream_hosts_per_locality.get().begin();
+  auto upstream_mapping_it = upstream_locality_mapping.begin();
+
+  ENVOY_LOG(trace, "starting calculateLocalityPercentages() loop");
+
+  int64_t loop_counter = 0;
+  while (local_it != local_hosts_per_locality.get().end() ||
+         upstream_it != upstream_hosts_per_locality.get().end()) {
+    ENVOY_LOG(trace, "beginning loop number: {}", loop_counter);
+    bool local_at_end = local_it == local_hosts_per_locality.get().end();
+    bool upstream_at_end = upstream_it == upstream_hosts_per_locality.get().end();
+
+    // If we aren't already at the end of the locality list,
+    // grab the next locality and count the number of member hosts
+    uint64_t local_hosts_in_locality = 0;
+    uint64_t upstream_hosts_in_locality = 0;
+    envoy::config::core::v3::Locality local_locality;
+    envoy::config::core::v3::Locality upstream_locality;
+    if (!local_at_end) {
+      local_hosts_in_locality = local_it->size();
+      if (local_hosts_in_locality > 0) {
+        local_locality = local_it->begin()->get()->locality();
+      }
+    }
+    if (!upstream_at_end) {
+      upstream_hosts_in_locality = upstream_it->size();
+      if (upstream_hosts_in_locality > 0) {
+        upstream_locality = upstream_it->begin()->get()->locality();
+      }
+    }
+
+    bool is_current_local_locality = local_it == local_hosts_per_locality.get().begin();
+    if (is_current_local_locality) {
+      ENVOY_LOG(trace, "currently processing local locality", local_locality.DebugString());
+    }
+    if (local_at_end) {
+      ENVOY_LOG(trace, "local_at_end: true");
+    }
+    if (upstream_at_end) {
+      ENVOY_LOG(trace, "upstream_at_end: true");
+    }
+    ENVOY_LOG(trace, "local_hosts_in_locality: {}", local_hosts_in_locality);
+    ENVOY_LOG(trace, "upstream_hosts_in_locality: {}", upstream_hosts_in_locality);
+    if (local_hosts_in_locality > 0) {
+      ENVOY_LOG(trace, "local_locality: {}", local_locality.DebugString());
+    }
+    if (upstream_hosts_in_locality > 0) {
+      ENVOY_LOG(trace, "upstream_locality: {}", upstream_locality.DebugString());
+    }
+    if (local_hosts_in_locality > 0 && upstream_hosts_in_locality > 0) {
+      ENVOY_LOG(trace, "local_locality == upstream_locality: {}", LocalityEqualTo()(local_locality, upstream_locality));
+      ENVOY_LOG(trace, "local_locality < upstream_locality: {}", LocalityLess()(local_locality, upstream_locality));
+      ENVOY_LOG(trace, "upstream_locality < local_locality: {}", LocalityLess()(upstream_locality, local_locality));
+    }
+
+    bool consume_local_locality = false;
+    if (is_current_local_locality) {
+      consume_local_locality = true;
+    } else if (!local_at_end && !LocalityLess()(upstream_locality, local_locality)) {
+      consume_local_locality = true;
+    } else if (upstream_at_end) {
+      consume_local_locality = true;
+    }
+    bool consume_upstream_locality = false;
+    if (is_current_local_locality && !upstream_at_end && upstream_hosts_per_locality.hasLocalLocality()) {
+      consume_upstream_locality = true;
+    } else if (!is_current_local_locality && !upstream_at_end && !LocalityLess()(local_locality, upstream_locality)) {
+      consume_upstream_locality = true;
+    } else if (!is_current_local_locality && local_at_end) {
+      consume_upstream_locality = true;
+    }
+    ASSERT(consume_local_locality || consume_upstream_locality);
+    
+    if (consume_local_locality) {
+      local_percentage.push_back(total_local_hosts > 0
+                                    ? 10000ULL * local_hosts_in_locality / total_local_hosts
+                                    : 0);
+      ++local_it;
+      ENVOY_LOG(trace, "pushed local_percentage: {}", local_percentage.back());
+    } else {
+      local_percentage.push_back(0);
+    }
+    if (consume_upstream_locality) {
+      upstream_percentage.push_back(total_upstream_hosts > 0
+                                        ? 10000ULL * upstream_hosts_in_locality / total_upstream_hosts
+                                        : 0);
+      *upstream_mapping_it = local_percentage.size() - 1;
+      ++upstream_mapping_it;
+      ++upstream_it;
+      ENVOY_LOG(trace, "pushed upstream_percentage: {}", upstream_percentage.back());
+      ENVOY_LOG(trace, "pushed upstream_locality_mapping: {}", local_percentage.size() - 1);
+    } else {
+      upstream_percentage.push_back(0);
+    }
+
+    ++loop_counter;
   }
 
-  // TODO(snowp): Should we ignore excluded hosts here too?
-
-  size_t i = 0;
-  for (const auto& locality_hosts : hosts_per_locality.get()) {
-    ret[i++] = total_hosts > 0 ? 10000ULL * locality_hosts.size() / total_hosts : 0;
+  ENVOY_LOG(trace, "finished calculateLocalityPercentages() loop");
+  ASSERT(local_percentage.size() == upstream_percentage.size());
+  auto local_percentage_fixed_array = absl::FixedArray<uint64_t>(local_percentage.size());
+  for (size_t i = 0; i < local_percentage.size(); ++i) {
+    local_percentage_fixed_array[i] = local_percentage[i];
   }
+  auto upstream_percentage_fixed_array = absl::FixedArray<uint64_t>(upstream_percentage.size());
+  for (size_t i = 0; i < upstream_percentage.size(); ++i) {
+    upstream_percentage_fixed_array[i] = upstream_percentage[i];
+  }
+
+  ENVOY_LOG(trace, "returning from calculateLocalityPercentages() {}, {}, {}", local_percentage_fixed_array, upstream_percentage_fixed_array, upstream_locality_mapping);
+  return std::make_unique<LocalityPercentages>(
+    LocalityPercentages{
+      std::move(local_percentage_fixed_array),
+      std::move(upstream_percentage_fixed_array),
+      std::move(upstream_locality_mapping)
+    });
 }
 
 uint32_t ZoneAwareLoadBalancerBase::tryChooseLocalLocalityHosts(const HostSet& host_set) const {
@@ -637,7 +754,7 @@ uint32_t ZoneAwareLoadBalancerBase::tryChooseLocalLocalityHosts(const HostSet& h
   // At this point it's guaranteed to be at least 2 localities & local exists.
   const size_t number_of_localities = host_set.healthyHostsPerLocality().get().size();
   ASSERT(number_of_localities >= 2U);
-  ASSERT(host_set.healthyHostsPerLocality().hasLocalLocality());
+  ASSERT(host_set.healthyHostsPerLocality().hasLocalLocality() || (state.locality_routing_state_ == LocalityRoutingState::LocalityResidual && state.local_percent_to_route_ == 0));
 
   // Try to push all of the requests to the same locality first.
   if (state.locality_routing_state_ == LocalityRoutingState::LocalityDirect) {
