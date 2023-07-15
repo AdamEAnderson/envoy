@@ -1285,6 +1285,180 @@ TEST_P(RoundRobinLoadBalancerTest, ZoneAwareSmallCluster) {
   EXPECT_EQ(hostSet().healthy_hosts_per_locality_->get()[0][0], lb_->chooseHost(nullptr));
 }
 
+TEST_P(RoundRobinLoadBalancerTest, ZoneAwareZonesMismatched) {
+  if (&hostSet() == &failover_host_set_) { // P = 1 does not support zone-aware routing.
+    return;
+  }
+
+  // Setup is:
+  // L = local envoy
+  // U = upstream host
+  //
+  // Zone A: 1L, 1U
+  // Zone B: 1L, 0U
+  // Zone C: 0L, 1U
+
+  HostVectorSharedPtr hosts(new HostVector({makeTestHost(info_, "tcp://127.0.0.1:80", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:82", simTime())}));
+  // Upstream and local hosts when in zone A
+  HostsPerLocalitySharedPtr upstream_hosts_per_locality_a =
+      makeHostsPerLocality({{makeTestHost(info_, "tcp://127.0.0.1:80", simTime())},
+                            {makeTestHost(info_, "tcp://127.0.0.1:82", simTime())}});
+  HostsPerLocalitySharedPtr local_hosts_per_locality_a =
+      makeHostsPerLocality({{makeTestHost(info_, "tcp://127.0.0.1:80", simTime())},
+                            {makeTestHost(info_, "tcp://127.0.0.1:81", simTime())}});
+
+  hostSet().healthy_hosts_ = *hosts;
+  hostSet().hosts_ = *hosts;
+  hostSet().healthy_hosts_per_locality_ = upstream_hosts_per_locality_a;
+  common_config_.mutable_healthy_panic_threshold()->set_value(50);
+  common_config_.mutable_zone_aware_lb_config()->mutable_routing_enabled()->set_value(100);
+  common_config_.mutable_zone_aware_lb_config()->mutable_min_cluster_size()->set_value(2);
+  init(true);
+  updateHosts(hosts, local_hosts_per_locality_a);
+
+  EXPECT_CALL(runtime_.snapshot_, getInteger("upstream.healthy_panic_threshold", 50))
+      .WillRepeatedly(Return(50));
+  EXPECT_CALL(runtime_.snapshot_, featureEnabled("upstream.zone_routing.enabled", 100))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(runtime_.snapshot_, getInteger("upstream.zone_routing.min_cluster_size", 2))
+      .WillRepeatedly(Return(2));
+
+  // Expect zone-aware routing direct mode when in zone A
+  EXPECT_EQ(hostSet().healthy_hosts_per_locality_->get()[0][0], lb_->chooseHost(nullptr));
+  EXPECT_EQ(1U, stats_.lb_zone_routing_all_directly_.value());
+  EXPECT_EQ(hostSet().healthy_hosts_per_locality_->get()[0][0], lb_->chooseHost(nullptr));
+  EXPECT_EQ(2U, stats_.lb_zone_routing_all_directly_.value());
+
+  // Upstream and local hosts when in zone B (no local upstream in B)
+  HostsPerLocalitySharedPtr upstream_hosts_per_locality_b =
+      makeHostsPerLocality({{makeTestHost(info_, "tcp://127.0.0.1:80", simTime())},
+                            {makeTestHost(info_, "tcp://127.0.0.1:82", simTime())}}, true);
+  HostsPerLocalitySharedPtr local_hosts_per_locality_b =
+      makeHostsPerLocality({{makeTestHost(info_, "tcp://127.0.0.1:81", simTime())},
+                            {makeTestHost(info_, "tcp://127.0.0.1:80", simTime())}});
+
+  hostSet().healthy_hosts_per_locality_ = upstream_hosts_per_locality_b;
+  updateHosts(hosts, local_hosts_per_locality_b);
+
+  // Expect zone-aware routing disabled when in zone B due to no upstream host in local zone
+  EXPECT_EQ(hostSet().healthy_hosts_[0], lb_->chooseHost(nullptr));
+  EXPECT_EQ(hostSet().healthy_hosts_[1], lb_->chooseHost(nullptr));
+  
+  // only incremented once on locality structure regeneration
+  EXPECT_EQ(1U, stats_.lb_local_cluster_not_ok_.value());
+}
+
+TEST_P(RoundRobinLoadBalancerTest, ZoneAwareResidualsMismatched) {
+  if (&hostSet() == &failover_host_set_) { // P = 1 does not support zone-aware routing.
+    return;
+  }
+
+  // Setup is:
+  // L = local envoy
+  // U = upstream host
+  //
+  //                | expected  | actual    |
+  //                | residuals | residuals |
+  // ----------------------------------------
+  // Zone A: 2L, 1U | 0%        | 0%        |
+  // Zone B: 2L, 0U | N/A       | N/A       |
+  // Zone C: 1L, 3U | 20.83%    | 4.17%     |
+  // Zone D: 1L, 3U | 20.83%    | 20.83%    |
+  // Zone E: 0L, 1U | N/A       | N/A       |
+  // ----------------------------------------
+  // Totals: 6L, 8U | 41.67%    | 25%       |
+  //
+  // Idea is for the local cluster to be A, and for there to be residual from A.
+  // The number of local and upstream zones must be the same for zone routing to be enabled.
+  // Then we ensure that there are two different zones with different residuals.
+  // Finally we add a zone with local hosts but no upstream hosts just after the local zone to create a
+  // mismatch between the local percentages and upstream percentages vectors when performing residual calculations.
+
+  HostVectorSharedPtr hosts(new HostVector({makeTestHost(info_, "tcp://127.0.0.1:80", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:81", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:82", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:83", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:84", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:85", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:86", simTime()),
+                                            makeTestHost(info_, "tcp://127.0.0.1:87", simTime())}));
+  HostVectorSharedPtr local_hosts(new HostVector({makeTestHost(info_, "tcp://127.0.0.1:0", simTime()),
+                                                  makeTestHost(info_, "tcp://127.0.0.1:1", simTime()),
+                                                  makeTestHost(info_, "tcp://127.0.0.1:2", simTime()),
+                                                  makeTestHost(info_, "tcp://127.0.0.1:3", simTime()),
+                                                  makeTestHost(info_, "tcp://127.0.0.1:4", simTime()),
+                                                  makeTestHost(info_, "tcp://127.0.0.1:5", simTime())}));
+
+  // Local zone is zone A
+  HostsPerLocalitySharedPtr upstream_hosts_per_locality =
+      makeHostsPerLocality({{ // Zone A
+                              makeTestHost(info_, "tcp://127.0.0.1:80", simTime())
+                            },
+                            { // Zone C
+                              makeTestHost(info_, "tcp://127.0.0.1:81", simTime()),
+                              makeTestHost(info_, "tcp://127.0.0.1:82", simTime()),
+                              makeTestHost(info_, "tcp://127.0.0.1:83", simTime())
+                            },
+                            { // Zone D
+                              makeTestHost(info_, "tcp://127.0.0.1:84", simTime()),
+                              makeTestHost(info_, "tcp://127.0.0.1:85", simTime()),
+                              makeTestHost(info_, "tcp://127.0.0.1:86", simTime())
+                            },
+                            { // Zone E
+                              makeTestHost(info_, "tcp://127.0.0.1:87", simTime())
+                            }});
+
+  HostsPerLocalitySharedPtr local_hosts_per_locality =
+      makeHostsPerLocality({{ // Zone A
+                              makeTestHost(info_, "tcp://127.0.0.1:0", simTime()),
+                              makeTestHost(info_, "tcp://127.0.0.1:1", simTime())
+                            },
+                            { // Zone B
+                              makeTestHost(info_, "tcp://127.0.0.1:2", simTime()),
+                              makeTestHost(info_, "tcp://127.0.0.1:3", simTime())
+                            },
+                            { // Zone C
+                              makeTestHost(info_, "tcp://127.0.0.1:4", simTime())
+                            },
+                            { // Zone D
+                              makeTestHost(info_, "tcp://127.0.0.1:5", simTime())
+                            }});
+
+  hostSet().healthy_hosts_ = *hosts;
+  hostSet().hosts_ = *hosts;
+  hostSet().healthy_hosts_per_locality_ = upstream_hosts_per_locality;
+  common_config_.mutable_healthy_panic_threshold()->set_value(50);
+  common_config_.mutable_zone_aware_lb_config()->mutable_routing_enabled()->set_value(100);
+  common_config_.mutable_zone_aware_lb_config()->mutable_min_cluster_size()->set_value(6);
+  init(true);
+  updateHosts(local_hosts, local_hosts_per_locality);
+
+  EXPECT_CALL(runtime_.snapshot_, getInteger("upstream.healthy_panic_threshold", 50))
+      .WillRepeatedly(Return(50));
+  EXPECT_CALL(runtime_.snapshot_, featureEnabled("upstream.zone_routing.enabled", 100))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(runtime_.snapshot_, getInteger("upstream.zone_routing.min_cluster_size", 6))
+      .WillRepeatedly(Return(6));
+
+  // Residual mode traffic will go directly to the upstream in A 50% of the time
+  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(100));
+  EXPECT_EQ(hostSet().healthy_hosts_per_locality_->get()[0][0], lb_->chooseHost(nullptr));
+  EXPECT_EQ(1U, stats_.lb_zone_routing_sampled_.value());
+  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(100));
+  EXPECT_EQ(hostSet().healthy_hosts_per_locality_->get()[0][0], lb_->chooseHost(nullptr));
+  EXPECT_EQ(2U, stats_.lb_zone_routing_sampled_.value());
+
+  // The other 50% of the time, traffic will go to cross-zone upstreams with residual capacity
+  // That is zone C and D, which have 3 upstreams and 1 downstream each.
+  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(9999)).WillOnce(Return(5050));
+  EXPECT_EQ(hostSet().healthy_hosts_per_locality_->get()[1][0], lb_->chooseHost(nullptr));
+  EXPECT_EQ(1U, stats_.lb_zone_routing_cross_zone_.value());
+  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(9999)).WillOnce(Return(6000)); // 6000/10000 = 60% > 58.33% = 7/12
+  EXPECT_EQ(hostSet().healthy_hosts_per_locality_->get()[2][0], lb_->chooseHost(nullptr));
+  EXPECT_EQ(2U, stats_.lb_zone_routing_sampled_.value());
+}
+
 TEST_P(RoundRobinLoadBalancerTest, NoZoneAwareDifferentZoneSize) {
   if (&hostSet() == &failover_host_set_) { // P = 1 does not support zone-aware routing.
     return;
