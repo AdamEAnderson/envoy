@@ -477,7 +477,7 @@ TEST_P(MaglevLoadBalancerTest, LocalityWeightedGlobalPanic) {
   host_set_.healthy_hosts_ = {};
   host_set_.hosts_per_locality_ =
       makeHostsPerLocality({{host_set_.hosts_[0]}, {host_set_.hosts_[1]}});
-  host_set_.healthy_hosts_per_locality_ = makeHostsPerLocality({{}, {}});
+  host_set_.healthy_hosts_per_locality_ = makeHostsPerLocality({});
   LocalityWeightsConstSharedPtr locality_weights{new LocalityWeights{1, 1}};
   host_set_.locality_weights_ = locality_weights;
   host_set_.runCallbacks({}, {});

@@ -572,7 +572,11 @@ std::vector<HostsPerLocalityConstSharedPtr> HostsPerLocalityImpl::filter(
     }
 
     for (size_t i = 0; i < predicates.size(); ++i) {
-      mutable_clones[i]->hosts_per_locality_.push_back(std::move(current_locality_hosts[i]));
+      if (!current_locality_hosts[i].empty()) { // No entry in hosts_per_locality_ can be empty
+        mutable_clones[i]->hosts_per_locality_.push_back(std::move(current_locality_hosts[i]));
+      } else if (mutable_clones[i]->local_ && mutable_clones[i]->hosts_per_locality_.empty()) {
+        mutable_clones[i]->local_ = false;
+      }
     }
   }
 
@@ -1449,6 +1453,7 @@ ClusterImplBase::ClusterImplBase(const envoy::config::cluster::v3::Cluster& clus
   priority_set_.getOrCreateHostSet(0);
   priority_update_cb_ = priority_set_.addPriorityUpdateCb(
       [this](uint32_t, const HostVector& hosts_added, const HostVector& hosts_removed) {
+        ENVOY_LOG(trace, "upstream_impl.cc:1452");
         if (!hosts_added.empty() || !hosts_removed.empty()) {
           info_->endpointStats().membership_change_.inc();
         }

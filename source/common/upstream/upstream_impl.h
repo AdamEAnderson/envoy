@@ -478,15 +478,23 @@ public:
 
   // Single locality constructor
   HostsPerLocalityImpl(const HostVector& hosts, bool has_local_locality = false)
-      : HostsPerLocalityImpl(std::vector<HostVector>({hosts}), has_local_locality) {}
+      : HostsPerLocalityImpl(std::vector<HostVector>({hosts}), has_local_locality) {
+        ASSERT(!hosts.empty());
+      }
 
   HostsPerLocalityImpl(std::vector<HostVector>&& locality_hosts, bool has_local_locality)
       : local_(has_local_locality), hosts_per_locality_(std::move(locality_hosts)) {
     ASSERT(!has_local_locality || !hosts_per_locality_.empty());
+    for (const auto& locality_hosts : hosts_per_locality_) {
+      ASSERT(!locality_hosts.empty());
+    }
   }
 
   bool hasLocalLocality() const override { return local_; }
-  const std::vector<HostVector>& get() const override { return hosts_per_locality_; }
+  const std::vector<HostVector>& get() const override {
+    ASSERT(hosts_per_locality_.empty() || !hosts_per_locality_[0].empty());
+    return hosts_per_locality_;
+  }
   std::vector<HostsPerLocalityConstSharedPtr>
   filter(const std::vector<std::function<bool(const Host&)>>& predicate) const override;
 
@@ -499,6 +507,7 @@ public:
 private:
   // Does an entry exist for the local locality?
   bool local_{};
+  // If local_ is true, the first entry is for local hosts in the local locality.
   // The first entry is for local hosts in the local locality.
   std::vector<HostVector> hosts_per_locality_;
 };

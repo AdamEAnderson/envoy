@@ -470,7 +470,7 @@ void HdsCluster::updateHosts(
   HostsMap hosts_map;
 
   for (auto& endpoints : locality_endpoints) {
-    hosts_by_locality.emplace_back();
+    HostVector locality_hosts;
     for (auto& endpoint : endpoints.lb_endpoints()) {
       LocalityEndpointTuple endpoint_key = {endpoints.locality(), endpoint};
 
@@ -496,9 +496,12 @@ void HdsCluster::updateHosts(
       }
 
       // No matter if it is reused or new, always add to these data structures.
-      hosts_by_locality.back().push_back(host);
+      locality_hosts.emplace_back(host);
       hosts->push_back(host);
       hosts_map.insert({endpoint_key, host});
+    }
+    if (!locality_hosts.empty()) {
+      hosts_by_locality.emplace_back(locality_hosts);
     }
   }
 

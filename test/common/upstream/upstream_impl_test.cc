@@ -4871,7 +4871,7 @@ TEST_F(HostsWithLocalityImpl, Filter) {
           return &host == host_0.get();
         }})[0];
     EXPECT_FALSE(filtered->hasLocalLocality());
-    const std::vector<HostVector> expected_locality_hosts = {{host_0}, {}};
+    const std::vector<HostVector> expected_locality_hosts = {{host_0}};
     EXPECT_EQ(expected_locality_hosts, filtered->get());
   }
 
@@ -4881,8 +4881,32 @@ TEST_F(HostsWithLocalityImpl, Filter) {
         HostsPerLocalityImpl(std::move(locality_hosts), true).filter({[&host_1](const Host& host) {
           return &host == host_1.get();
         }})[0];
+    EXPECT_FALSE(filtered->hasLocalLocality());
+    const std::vector<HostVector> expected_locality_hosts = {{host_1}};
+    EXPECT_EQ(expected_locality_hosts, filtered->get());
+  }
+
+  {
+    std::vector<HostVector> locality_hosts = {{host_0}, {host_1}};
+    auto filtered =
+        HostsPerLocalityImpl(std::move(locality_hosts), true).filter({[](const Host& host) {
+          (void)host; // unused
+          return false;
+        }})[0];
+    EXPECT_FALSE(filtered->hasLocalLocality());
+    const std::vector<HostVector> expected_locality_hosts = {};
+    EXPECT_EQ(expected_locality_hosts, filtered->get());
+  }
+
+  {
+    std::vector<HostVector> locality_hosts = {{host_0}, {host_1}};
+    auto filtered =
+        HostsPerLocalityImpl(std::move(locality_hosts), true).filter({[](const Host& host) {
+          (void)host; // unused
+          return true;
+        }})[0];
     EXPECT_TRUE(filtered->hasLocalLocality());
-    const std::vector<HostVector> expected_locality_hosts = {{}, {host_1}};
+    const std::vector<HostVector> expected_locality_hosts = {{host_0}, {host_1}};
     EXPECT_EQ(expected_locality_hosts, filtered->get());
   }
 }
@@ -4929,7 +4953,7 @@ TEST_F(HostSetImplLocalityTest, NotWarmedHostsLocality) {
   HostsPerLocalitySharedPtr healthy_hosts_per_locality =
       makeHostsPerLocality({{hosts_[0]}, {hosts_[3], hosts_[4]}});
   HostsPerLocalitySharedPtr excluded_hosts_per_locality =
-      makeHostsPerLocality({{hosts_[1], hosts_[2]}, {}});
+      makeHostsPerLocality({{hosts_[1], hosts_[2]}});
 
   host_set_.updateHosts(
       HostSetImpl::updateHostsParams(
@@ -4945,21 +4969,6 @@ TEST_F(HostSetImplLocalityTest, NotWarmedHostsLocality) {
   EXPECT_EQ(1, host_set_.chooseHealthyLocality().value());
   EXPECT_EQ(0, host_set_.chooseHealthyLocality().value());
   EXPECT_EQ(1, host_set_.chooseHealthyLocality().value());
-}
-
-// When a locality has zero hosts, it should be treated as if it has zero healthy.
-TEST_F(HostSetImplLocalityTest, EmptyLocality) {
-  HostsPerLocalitySharedPtr hosts_per_locality =
-      makeHostsPerLocality({{hosts_[0], hosts_[1], hosts_[2]}, {}});
-  LocalityWeightsConstSharedPtr locality_weights{new LocalityWeights{1, 1}};
-  auto hosts = makeHostsFromHostsPerLocality(hosts_per_locality);
-  host_set_.updateHosts(updateHostsParams(hosts, hosts_per_locality,
-                                          std::make_shared<const HealthyHostVector>(*hosts),
-                                          hosts_per_locality),
-                        locality_weights, {}, {}, absl::nullopt);
-  // Verify that we are not RRing between localities.
-  EXPECT_EQ(0, host_set_.chooseHealthyLocality().value());
-  EXPECT_EQ(0, host_set_.chooseHealthyLocality().value());
 }
 
 // When all locality weights are zero we should fail to select a locality.
@@ -5030,6 +5039,7 @@ TEST_F(HostSetImplLocalityTest, MissingWeight) {
 // Gentle failover between localities as health diminishes.
 TEST_F(HostSetImplLocalityTest, UnhealthyFailover) {
   const auto setHealthyHostCount = [this](uint32_t host_count) {
+      std::cout << host_count << std::endl;
     LocalityWeightsConstSharedPtr locality_weights{new LocalityWeights{1, 2}};
     HostsPerLocalitySharedPtr hosts_per_locality = makeHostsPerLocality(
         {{hosts_[0], hosts_[1], hosts_[2], hosts_[3], hosts_[4]}, {hosts_[5]}});
@@ -5037,8 +5047,14 @@ TEST_F(HostSetImplLocalityTest, UnhealthyFailover) {
     for (uint32_t i = 0; i < host_count; ++i) {
       healthy_hosts.emplace_back(hosts_[i]);
     }
-    HostsPerLocalitySharedPtr healthy_hosts_per_locality =
-        makeHostsPerLocality({healthy_hosts, {hosts_[5]}});
+    HostsPerLocalitySharedPtr healthy_hosts_per_locality;
+    if (healthy_hosts.empty()) {
+      healthy_hosts_per_locality = makeHostsPerLocality({{hosts_[5]}}, true);
+      std::cout << "hello" << std::endl;
+    } else {
+      healthy_hosts_per_locality = makeHostsPerLocality({healthy_hosts, {hosts_[5]}});
+      std::cout << "world" << std::endl;
+    }
 
     auto hosts = makeHostsFromHostsPerLocality(hosts_per_locality);
     host_set_.updateHosts(updateHostsParams(hosts, hosts_per_locality,
@@ -5071,7 +5087,9 @@ TEST_F(HostSetImplLocalityTest, UnhealthyFailover) {
   setHealthyHostCount(1);
   expectPicks(12, 88);
   setHealthyHostCount(0);
-  expectPicks(0, 100);
+  // No hosts in local zone (locality 0),
+  // so HostsPerLocality has no local zone and locality 1 becomes locality 0
+  expectPicks(100, 0);
 }
 
 TEST(OverProvisioningFactorTest, LocalityPickChanges) {

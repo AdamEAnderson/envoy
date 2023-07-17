@@ -815,11 +815,17 @@ void SubsetLoadBalancer::HostSubsetImpl::update(const HostHashSet& matching_host
   HostsPerLocalityConstSharedPtr hosts_per_locality;
 
   if (original_host_set_.hostsPerLocality().get().size() == 1) {
-    hosts_per_locality = std::make_shared<HostsPerLocalityImpl>(
-        *hosts, original_host_set_.hostsPerLocality().hasLocalLocality());
+    if (hosts->empty()) {
+      hosts_per_locality = std::make_shared<HostsPerLocalityImpl>();
+    } else {
+      hosts_per_locality = std::make_shared<HostsPerLocalityImpl>(
+        *hosts,  original_host_set_.hostsPerLocality().hasLocalLocality());
+    }
   } else {
+    ENVOY_LOG(trace, "bar");
     hosts_per_locality = original_host_set_.hostsPerLocality().filter({cached_predicate})[0];
   }
+  ENVOY_LOG(trace, "baz");
 
   auto healthy_hosts_per_locality =
       original_host_set_.healthyHostsPerLocality().filter({cached_predicate})[0];

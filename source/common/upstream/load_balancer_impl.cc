@@ -196,6 +196,9 @@ void LoadBalancerBase::recalculatePerPriorityState(uint32_t priority,
   per_priority_degraded.get()[priority] = 0;
   const auto host_count = host_set.hosts().size() - host_set.excludedHosts().size();
 
+  ENVOY_LOG(trace, "host_set excluded size: {}", host_set.excludedHosts().size());
+  ENVOY_LOG(trace, "host_count: {}", host_count);
+
   if (host_count > 0) {
     uint64_t healthy_weight = 0;
     uint64_t degraded_weight = 0;
@@ -310,6 +313,7 @@ void LoadBalancerBase::recalculatePerPriorityState(uint32_t priority,
 // Method iterates through priority levels and turns on/off panic mode.
 void LoadBalancerBase::recalculatePerPriorityPanic() {
   per_priority_panic_.resize(priority_set_.hostSetsPerPriority().size());
+  ENVOY_LOG(trace, "recalculating panic mode");
 
   const uint32_t normalized_total_availability =
       calculateNormalizedTotalAvailability(per_priority_health_, per_priority_degraded_);
@@ -476,6 +480,9 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
   HostSet& host_set = *priority_set_.hostSetsPerPriority()[priority];
   const size_t num_upstream_localities = host_set.healthyHostsPerLocality().get().size();
   ASSERT(num_upstream_localities >= 2);
+  
+  ENVOY_LOG(trace, "local healthy: {}", localHostSet().healthyHostsPerLocality().get()[0].size());
+  ENVOY_LOG(trace, "upstream healthy: {}", host_set.healthyHostsPerLocality().get()[0].size());
 
   // It is worth noting that all of the percentages calculated are orthogonal from
   // how much load this priority level receives, percentageLoad(priority).
@@ -521,20 +528,21 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
   // searching where sampled value is placed.
   state.residual_capacity_.resize(num_upstream_localities);
 
-  // Local locality (index 0) does not have residual capacity as we have routed all we could.
-  state.residual_capacity_[0] = 0;
-  for (size_t i = 1; i < num_upstream_localities; ++i) {
+  for (size_t i = 0; i < num_upstream_localities; ++i) {
+    uint64_t residuals_previous = i > 0 ? state.residual_capacity_[i - 1] : 0;
     uint64_t combined_locality_index = locality_percentages->upstream_locality_mapping[i];
     // Only route to the localities that have additional capacity.
     if (locality_percentages->upstream_percentage[combined_locality_index] > locality_percentages->local_percentage[combined_locality_index]) {
       state.residual_capacity_[i] =
-          state.residual_capacity_[i - 1] + locality_percentages->upstream_percentage[combined_locality_index] - locality_percentages->local_percentage[combined_locality_index];
+          residuals_previous + locality_percentages->upstream_percentage[combined_locality_index] - locality_percentages->local_percentage[combined_locality_index];
     } else {
       // Locality with index "i" does not have residual capacity, but we keep accumulating previous
       // values to make search easier on the next step.
-      state.residual_capacity_[i] = state.residual_capacity_[i - 1];
+      state.residual_capacity_[i] = residuals_previous;
     }
   }
+  ENVOY_LOG(trace, "residual capacities: {}", state.residual_capacity_);
+  ENVOY_LOG(trace, "local percent to route: {}", state.local_percent_to_route_);
 }
 
 void ZoneAwareLoadBalancerBase::resizePerPriorityState() {
@@ -739,6 +747,19 @@ std::unique_ptr<ZoneAwareLoadBalancerBase::LocalityPercentages> ZoneAwareLoadBal
 }
 
 void ZoneAwareLoadBalancerBase::assertLocalityPerHostAssumptions(const HostsPerLocality& local_hosts_per_locality, const HostsPerLocality& upstream_hosts_per_locality) {
+  for (uint64_t i = 0; i < local_hosts_per_locality.get().size(); ++i) {
+    const auto& locality_hosts = local_hosts_per_locality.get()[i];
+    for (uint64_t j = 0; j < locality_hosts.size(); ++j) {
+      ENVOY_LOG(trace, "local_hosts_per_locality[{}][{}]: {}", i, j, locality_hosts[j]->locality().DebugString());
+    }
+  }
+  for (uint64_t i = 0; i < upstream_hosts_per_locality.get().size(); ++i) {
+    const auto& locality_hosts = upstream_hosts_per_locality.get()[i];
+    for (uint64_t j = 0; j < locality_hosts.size(); ++j) {
+      ENVOY_LOG(trace, "upstream_hosts_per_locality[{}][{}]: {}", i, j, locality_hosts[j]->locality().DebugString());
+    }
+  }
+
   // Assumptions:
   // 1. Each locality in local_hosts_per_locality and upstream_hosts_per_locality has at least one host.
   // 2. Local locality is always the first locality in local_hosts_per_locality and upstream_hosts_per_locality, if they have the local locality.
@@ -833,6 +854,7 @@ uint32_t ZoneAwareLoadBalancerBase::tryChooseLocalLocalityHosts(const HostSet& h
     i++;
   }
 
+  ENVOY_LOG(trace, "selected locality {}", i);
   return i;
 }
 
@@ -992,6 +1014,7 @@ void EdfLoadBalancerBase::initialize() {
 }
 
 void EdfLoadBalancerBase::recalculateHostsInSlowStart(const HostVector& hosts) {
+  ENVOY_LOG(trace, "recalculateHostsInSlowStart()");
   // TODO(nezdolik): linear scan can be improved with using flat hash set for hosts in slow start.
   for (const auto& host : hosts) {
     auto current_time = time_source_.monotonicTime();
@@ -1130,6 +1153,26 @@ HostConstSharedPtr EdfLoadBalancerBase::chooseHostOnce(LoadBalancerContext* cont
   if (!hosts_source) {
     return nullptr;
   }
+  auto source_type_to_str = [](HostsSource::SourceType source_type) {
+      switch (source_type) {
+      case HostsSource::SourceType::AllHosts:
+        return "AllHosts";
+      case HostsSource::SourceType::HealthyHosts:
+        return "HealthyHosts";
+      case HostsSource::SourceType::DegradedHosts:
+        return "DegradedHosts";
+      case HostsSource::SourceType::LocalityHealthyHosts:
+        return "LocalityHealthyHosts";
+      case HostsSource::SourceType::LocalityDegradedHosts:
+        return "LocalityDegradedHosts";
+      }
+      PANIC_DUE_TO_CORRUPT_ENUM;
+    };
+  for (const auto& kv : scheduler_) {
+    ENVOY_LOG(trace, "chooseHostOnce() scheduler_ key: {} {} {}", kv.first.locality_index_, kv.first.priority_, source_type_to_str(kv.first.source_type_));
+  }
+  ENVOY_LOG(trace, "chooseHostOnce() hosts_source: {} {} {}", hosts_source->locality_index_, hosts_source->priority_, source_type_to_str(hosts_source->source_type_));
+  ENVOY_LOG(trace, "chooseHostOnce() scheduler_: {}", scheduler_.size());
   auto scheduler_it = scheduler_.find(*hosts_source);
   // We should always have a scheduler for any return value from
   // hostSourceToUse() via the construction in refresh();
