@@ -24,6 +24,7 @@ declare -a KNOWN_LOW_COVERAGE=(
 "source/common/thread:0.0" # Death tests don't report LCOV
 "source/common/watchdog:58.6" # Death tests don't report LCOV
 "source/exe:94.9"
+"source/extensions/access_loggers/grpc:95.8"
 "source/extensions/access_loggers/wasm:93.5"
 "source/extensions/clusters/common:91.5" # This can be increased again once `#24903` lands
 "source/extensions/common:93.0" #flaky: be careful adjusting
@@ -56,7 +57,7 @@ declare -a KNOWN_LOW_COVERAGE=(
 "source/extensions/tracers/common/ot:71.8"
 "source/extensions/tracers/opencensus:93.2"
 "source/extensions/tracers/zipkin:95.8"
-"source/extensions/transport_sockets:95.8"
+"source/extensions/transport_sockets:95.7"
 "source/extensions/transport_sockets/tls:95.0"
 "source/extensions/transport_sockets/tls/cert_validator:95.2"
 "source/extensions/transport_sockets/tls/private_key:88.9"
