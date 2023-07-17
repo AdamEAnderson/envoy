@@ -483,6 +483,27 @@ public:
   HostsPerLocalityImpl(std::vector<HostVector>&& locality_hosts, bool has_local_locality)
       : local_(has_local_locality), hosts_per_locality_(std::move(locality_hosts)) {
     ASSERT(!has_local_locality || !hosts_per_locality_.empty());
+
+    // Assert sorted order and no duplicate buckets for the same locality.
+    absl::optional<uint64_t> last_non_empty = absl::nullopt;
+    bool has_non_empty_local = has_local_locality && !hosts_per_locality_[0].empty();
+    for (uint64_t i = 0; i < hosts_per_locality_.size(); ++i) {
+      if (hosts_per_locality_[i].empty()) {
+        continue;
+      }
+
+      if (i > 0 && has_non_empty_local) {
+        // This condition is sufficient to ensure there are no duplicate buckets
+        ASSERT(!LocalityEqualTo()(hosts_per_locality_[0][0]->locality(),
+                                  hosts_per_locality_[i][0]->locality()));
+      }
+      if (last_non_empty && (!has_local_locality || last_non_empty.value() > 0)) {
+        ASSERT(LocalityLess()(hosts_per_locality_[last_non_empty.value()][0]->locality(),
+                              hosts_per_locality_[i][0]->locality()));
+      }
+
+      last_non_empty = i;
+    }
   }
 
   bool hasLocalLocality() const override { return local_; }

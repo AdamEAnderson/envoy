@@ -363,15 +363,24 @@ private:
   };
 
   struct LocalityPercentages {
-    // The percentage of local hosts in each combined locality
+    // The percentage of local hosts in each combined locality.
+    // A locality has an entry in this list if and only if it has a non-zero host count in either
+    // the local or upstream set.
+    // The percentage corresponding to the current envoy's local locality is always first.
     // Percentage is stored as integer number and scaled by 10000 multiplier for better precision.
-    absl::FixedArray<uint64_t> local_percentage;
-    // The percentage of upstream hosts in each combined locality
+    std::vector<uint64_t> local_percentage;
+    // The percentage of upstream hosts in each combined locality.
+    // A locality has an entry in this list if and only if it has a non-zero host count in either
+    // the local or upstream set.
+    // The percentage corresponding to the current envoy's local locality is always first.
     // Percentage is stored as integer number and scaled by 10000 multiplier for better precision.
-    absl::FixedArray<uint64_t> upstream_percentage;
-    // The mapping from combined locality index back to upstream locality index
-    absl::FixedArray<uint64_t> upstream_locality_mapping;
+    std::vector<uint64_t> upstream_percentage;
+    // Map from indices in the upstream localities to indices in the combined percentage lists.
+    // There is an entry for an upstream locality index if and only if
+    // the upstream locality has at least one host.
+    std::map<uint64_t, uint64_t> upstream_to_percentage_index;
   };
+  using LocalityPercentagesPtr = std::unique_ptr<LocalityPercentages>;
 
   /**
    * Increase per_priority_state_ to at least priority_set.hostSetsPerPriority().size()
@@ -392,9 +401,9 @@ private:
 
   /**
    * @return combined per-locality information about percentages of local/upstream hosts in each locality.
-   * Caller is responsible for de-allocation of the LocalityPercentages struct.
+   * See LocalityPercentages for more details.
    */
-  std::unique_ptr<LocalityPercentages> calculateLocalityPercentages(
+  LocalityPercentagesPtr calculateLocalityPercentages(
     const HostsPerLocality& local_hosts_per_locality,
     const HostsPerLocality& upstream_hosts_per_locality);
 
