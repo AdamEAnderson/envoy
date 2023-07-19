@@ -241,7 +241,8 @@ public:
     }
 
     host_set.hosts_ = all_hosts;
-    host_set.hosts_per_locality_ = makeHostsPerLocality({first_locality_hosts, second_locality_hosts});
+    host_set.hosts_per_locality_ =
+        makeHostsPerLocality({first_locality_hosts, second_locality_hosts});
     host_set.healthy_hosts_ = host_set.hosts_;
     host_set.healthy_hosts_per_locality_ = host_set.hosts_per_locality_;
     host_set.locality_weights_ = std::make_shared<const LocalityWeights>(locality_weights);
@@ -360,7 +361,8 @@ public:
     return makeTestHost(info_, url, m, simTime());
   }
 
-  HostSharedPtr makeHost(const std::string& url, const HostMetadata& metadata, const envoy::config::core::v3::Locality& locality) {
+  HostSharedPtr makeHost(const std::string& url, const HostMetadata& metadata,
+                         const envoy::config::core::v3::Locality& locality) {
     envoy::config::core::v3::Metadata m;
     for (const auto& m_it : metadata) {
       Config::Metadata::mutableMetadataValue(m, Config::MetadataFilters::get().ENVOY_LB, m_it.first)
@@ -1691,15 +1693,15 @@ TEST_P(SubsetLoadBalancerTest, ZoneAwareFallbackAfterUpdate) {
   // Force request out of small zone.
   EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(9999)).WillOnce(Return(2));
   EXPECT_EQ(host_set_.healthy_hosts_per_locality_->get()[1][0], lb_->chooseHost(nullptr));
-  
+
   auto local_locality = envoy::config::core::v3::Locality();
   local_locality.set_zone("0");
 
-  modifyHosts({makeHost("tcp://127.0.0.1:8000", {{"version", "1.0"}}, local_locality)}, {host_set_.hosts_[0]},
-              absl::optional<uint32_t>(0));
+  modifyHosts({makeHost("tcp://127.0.0.1:8000", {{"version", "1.0"}}, local_locality)},
+              {host_set_.hosts_[0]}, absl::optional<uint32_t>(0));
 
-  modifyLocalHosts({makeHost("tcp://127.0.0.1:9000", {{"version", "1.0"}}, local_locality)}, {local_hosts_->at(0)},
-                   0);
+  modifyLocalHosts({makeHost("tcp://127.0.0.1:9000", {{"version", "1.0"}}, local_locality)},
+                   {local_hosts_->at(0)}, 0);
 
   EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(100));
   EXPECT_EQ(host_set_.healthy_hosts_per_locality_->get()[0][0], lb_->chooseHost(nullptr));
@@ -1825,8 +1827,8 @@ TEST_P(SubsetLoadBalancerTest, ZoneAwareFallbackDefaultSubsetAfterUpdate) {
   auto local_locality = envoy::config::core::v3::Locality();
   local_locality.set_zone("0");
 
-  modifyHosts({makeHost("tcp://127.0.0.1:8001", {{"version", "default"}}, local_locality)}, {host_set_.hosts_[1]},
-              absl::optional<uint32_t>(0));
+  modifyHosts({makeHost("tcp://127.0.0.1:8001", {{"version", "default"}}, local_locality)},
+              {host_set_.hosts_[1]}, absl::optional<uint32_t>(0));
 
   modifyLocalHosts({local_hosts_->at(1)},
                    {makeHost("tcp://127.0.0.1:9001", {{"version", "default"}}, local_locality)}, 0);
@@ -1951,11 +1953,11 @@ TEST_P(SubsetLoadBalancerTest, ZoneAwareBalancesSubsetsAfterUpdate) {
   auto local_locality = envoy::config::core::v3::Locality();
   local_locality.set_zone("0");
 
-  modifyHosts({makeHost("tcp://127.0.0.1:8001", {{"version", "1.1"}}, local_locality)}, {host_set_.hosts_[1]},
-              absl::optional<uint32_t>(0));
+  modifyHosts({makeHost("tcp://127.0.0.1:8001", {{"version", "1.1"}}, local_locality)},
+              {host_set_.hosts_[1]}, absl::optional<uint32_t>(0));
 
-  modifyLocalHosts({local_hosts_->at(1)}, {makeHost("tcp://127.0.0.1:9001", {{"version", "1.1"}}, local_locality)},
-                   0);
+  modifyLocalHosts({local_hosts_->at(1)},
+                   {makeHost("tcp://127.0.0.1:9001", {{"version", "1.1"}}, local_locality)}, 0);
 
   EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(100));
   EXPECT_EQ(host_set_.healthy_hosts_per_locality_->get()[0][1], lb_->chooseHost(&context));
@@ -2108,8 +2110,7 @@ TEST_P(SubsetLoadBalancerTest, ZoneAwareComplicatedBalancesSubsetsAfterUpdate) {
   modifyHosts({makeHost("tcp://127.0.0.1:8001", {{"version", "1.1"}}, local_locality)}, {},
               absl::optional<uint32_t>(0));
 
-  modifyLocalHosts({makeHost("tcp://127.0.0.1:9001", {{"version", "1.1"}}, locality_2)}, {},
-                   2);
+  modifyLocalHosts({makeHost("tcp://127.0.0.1:9001", {{"version", "1.1"}}, locality_2)}, {}, 2);
 
   // After update:
   //
@@ -2125,7 +2126,9 @@ TEST_P(SubsetLoadBalancerTest, ZoneAwareComplicatedBalancesSubsetsAfterUpdate) {
   //
   // Chance of sampling local host in zone 0: 58.34%
 
-  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(5830)); // 58.31% local routing chance due to rouding error
+  EXPECT_CALL(random_, random())
+      .WillOnce(Return(0))
+      .WillOnce(Return(5830)); // 58.31% local routing chance due to rouding error
   EXPECT_EQ(host_set_.healthy_hosts_per_locality_->get()[0][1], lb_->chooseHost(&context));
   EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(5831)).WillOnce(Return(475));
   EXPECT_EQ(host_set_.healthy_hosts_per_locality_->get()[1][3], lb_->chooseHost(&context));

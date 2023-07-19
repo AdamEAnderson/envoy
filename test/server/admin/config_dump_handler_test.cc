@@ -198,7 +198,7 @@ TEST_P(AdminInstanceTest, ConfigDumpWithLocalityEndpoint) {
   cluster_maps.active_clusters_.emplace(cluster.info_->name_, cluster);
 
   ON_CALL(*cluster.info_, addedViaApi()).WillByDefault(Return(false));
-  
+
   const std::string hostname_for_healthcheck = "test_hostname_healthcheck";
   const std::string empty_hostname_for_healthcheck = "";
 
@@ -220,7 +220,6 @@ TEST_P(AdminInstanceTest, ConfigDumpWithLocalityEndpoint) {
   locality_2.set_region("oceania");
   locality_2.set_zone("hello");
   locality_2.set_sub_zone("world");
-
 
   addHostInfo(*host_2, hostname_2, "tcp://1.2.3.4:80", locality_2, hostname_for_healthcheck,
               "tcp://1.2.3.5:90", 5, 6);

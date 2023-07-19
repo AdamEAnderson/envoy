@@ -486,7 +486,8 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
   //
   // Basically, fairness across localities within a priority is guaranteed. Fairness across
   // localities across priorities is not.
-  auto locality_percentages = calculateLocalityPercentages(localHostSet().healthyHostsPerLocality(), host_set.healthyHostsPerLocality());
+  auto locality_percentages = calculateLocalityPercentages(localHostSet().healthyHostsPerLocality(),
+                                                           host_set.healthyHostsPerLocality());
 
   // If we have lower percent of hosts in the local cluster in the same locality,
   // we can push all of the requests directly to upstream cluster in the same locality.
@@ -501,7 +502,8 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
   // For example, if local percentage is 20% and upstream is 10%
   // we can route only 50% of requests directly.
   // Local percent can be 0% if there are no upstream hosts in the local locality.
-  state.local_percent_to_route_ = locality_percentages->upstream_percentage[0] * 10000 / locality_percentages->local_percentage[0];
+  state.local_percent_to_route_ = locality_percentages->upstream_percentage[0] * 10000 /
+                                  locality_percentages->local_percentage[0];
 
   // Local locality does not have additional capacity (we have already routed what we could).
   // Now we need to figure out how much traffic we can route cross locality and to which exact
@@ -533,9 +535,12 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
 
     uint64_t combined_locality_index = percentage_index_it->second;
     // Only route to the localities that have additional capacity.
-    if (locality_percentages->upstream_percentage[combined_locality_index] > locality_percentages->local_percentage[combined_locality_index]) {
+    if (locality_percentages->upstream_percentage[combined_locality_index] >
+        locality_percentages->local_percentage[combined_locality_index]) {
       state.residual_capacity_[i] =
-          last_residual_capacity + locality_percentages->upstream_percentage[combined_locality_index] - locality_percentages->local_percentage[combined_locality_index];
+          last_residual_capacity +
+          locality_percentages->upstream_percentage[combined_locality_index] -
+          locality_percentages->local_percentage[combined_locality_index];
     } else {
       // Locality with index "i" does not have residual capacity, but we keep accumulating previous
       // values to make search easier on the next step.
@@ -561,18 +566,20 @@ bool ZoneAwareLoadBalancerBase::earlyExitNonLocalityRouting() {
     return true;
   }
 
-  // Do not perform locality routing if there are too few local localities for zone routing to have an effect.
+  // Do not perform locality routing if there are too few local localities for zone routing to have
+  // an effect.
   if (localHostSet().hostsPerLocality().get().size() < 2) {
     return true;
   }
-  
-  // Do not perform locality routing if the local cluster doesn't have any hosts in the current envoy's local locality.
-  // This breaks our assumptions about the local cluster being correctly configured, so we don't have enough information
-  // to perform locality routing.
-  // Note: If other envoys do exist according to the local cluster, they will still be able to perform locality routing correctly.
-  // This will not cause a traffic imbalance because other envoys will not know about the current one, so they will not factor it
-  // into locality routing calculations.
-  if (!localHostSet().hostsPerLocality().hasLocalLocality() || localHostSet().hostsPerLocality().get()[0].empty()) {
+
+  // Do not perform locality routing if the local cluster doesn't have any hosts in the current
+  // envoy's local locality. This breaks our assumptions about the local cluster being correctly
+  // configured, so we don't have enough information to perform locality routing. Note: If other
+  // envoys do exist according to the local cluster, they will still be able to perform locality
+  // routing correctly. This will not cause a traffic imbalance because other envoys will not know
+  // about the current one, so they will not factor it into locality routing calculations.
+  if (!localHostSet().hostsPerLocality().hasLocalLocality() ||
+      localHostSet().hostsPerLocality().get()[0].empty()) {
     stats_.lb_local_cluster_not_ok_.inc();
     return true;
   }
@@ -624,7 +631,8 @@ bool LoadBalancerBase::isHostSetInPanic(const HostSet& host_set) const {
   return false;
 }
 
-ZoneAwareLoadBalancerBase::LocalityPercentagesPtr ZoneAwareLoadBalancerBase::calculateLocalityPercentages(
+ZoneAwareLoadBalancerBase::LocalityPercentagesPtr
+ZoneAwareLoadBalancerBase::calculateLocalityPercentages(
     const HostsPerLocality& local_hosts_per_locality,
     const HostsPerLocality& upstream_hosts_per_locality) {
   uint64_t total_local_hosts = 0;
@@ -642,15 +650,18 @@ ZoneAwareLoadBalancerBase::LocalityPercentagesPtr ZoneAwareLoadBalancerBase::cal
 
   // Iterate through all localities in the upstream and local cluster in merged sorted order
   // and calculate percentage of hosts in each non-empty locality.
-  // 
+  //
   // Rules in order of precedence:
   // 1. If we are at the end of one of the locality lists, consume from the other.
-  // 2. If one of the localities is empty, consume from it (but no need to put it into the percentage list).
+  // 2. If one of the localities is empty, consume from it (but no need to put it into the
+  // percentage list).
   // 3. If the local locality is equal to the upstream locality, consume both.
   // 4. Consume from the local set if the local set iterator is still at the beginning.
-  //    => Hosts in the current envoy's local locality are always in the first locality bucket in hosts per locality.
+  //    => Hosts in the current envoy's local locality are always in the first locality bucket in
+  //    hosts per locality.
   //    => There is always at least one host in the local set in the current envoy's local locality.
-  //    => The current upstream locality is not empty, and not equal to the current envoy's local locality.
+  //    => The current upstream locality is not empty, and not equal to the current envoy's local
+  //    locality.
   // 5. Otherwise, consume from the list with the smaller locality at the current position.
 
   auto local_it = local_hosts_per_locality.get().begin();
@@ -682,7 +693,8 @@ ZoneAwareLoadBalancerBase::LocalityPercentagesPtr ZoneAwareLoadBalancerBase::cal
 
     bool consume_local_locality = false;
     bool consume_upstream_locality = false;
-    bool is_empty_consumption = false; // indicates that nothing should be pushed into the percentage list
+    bool is_empty_consumption =
+        false; // indicates that nothing should be pushed into the percentage list
     if (!local_at_end && upstream_at_end) { // Rule 1
       consume_local_locality = true;
     } else if (local_at_end && !upstream_at_end) { // Rule 1
@@ -703,10 +715,14 @@ ZoneAwareLoadBalancerBase::LocalityPercentagesPtr ZoneAwareLoadBalancerBase::cal
     } else { // Rule 5: upstream_locality < local_locality
       consume_upstream_locality = true;
     }
-    
+
     if (consume_local_locality) {
       if (!is_empty_consumption) {
-        local_percentage.emplace_back(10000ULL * local_hosts_in_locality / total_local_hosts);
+        // Note that local_hosts_in_locality > 0 is always true, but the check is added for extra
+        // defense
+        local_percentage.emplace_back(local_hosts_in_locality > 0
+                                          ? 10000ULL * local_hosts_in_locality / total_local_hosts
+                                          : 0);
       }
       ++local_it;
     } else if (!is_empty_consumption) {
@@ -714,22 +730,24 @@ ZoneAwareLoadBalancerBase::LocalityPercentagesPtr ZoneAwareLoadBalancerBase::cal
     }
     if (consume_upstream_locality) {
       if (!is_empty_consumption) {
-        upstream_percentage.emplace_back(10000ULL * upstream_hosts_in_locality / total_upstream_hosts);
+        // Note that upstream_hosts_in_locality > 0 is always true, but the check is added for extra
+        // defense
+        upstream_percentage.emplace_back(upstream_hosts_in_locality > 0
+                                             ? 10000ULL * upstream_hosts_in_locality /
+                                                   total_upstream_hosts
+                                             : 0);
         upstream_to_percentage_index[upstream_index] = upstream_percentage.size() - 1;
       }
       ++upstream_it;
       ++upstream_index;
-    } else if(!is_empty_consumption) {
+    } else if (!is_empty_consumption) {
       upstream_percentage.emplace_back(0);
     }
   }
 
   return std::make_unique<LocalityPercentages>(
-    LocalityPercentages{
-      std::move(local_percentage),
-      std::move(upstream_percentage),
-      std::move(upstream_to_percentage_index)
-    });
+      LocalityPercentages{std::move(local_percentage), std::move(upstream_percentage),
+                          std::move(upstream_to_percentage_index)});
 }
 
 uint32_t ZoneAwareLoadBalancerBase::tryChooseLocalLocalityHosts(const HostSet& host_set) const {
@@ -748,13 +766,15 @@ uint32_t ZoneAwareLoadBalancerBase::tryChooseLocalLocalityHosts(const HostSet& h
   }
 
   ASSERT(state.locality_routing_state_ == LocalityRoutingState::LocalityResidual);
-  ASSERT(host_set.healthyHostsPerLocality().hasLocalLocality() || state.local_percent_to_route_ == 0);
+  ASSERT(host_set.healthyHostsPerLocality().hasLocalLocality() ||
+         state.local_percent_to_route_ == 0);
 
   // If we cannot route all requests to the same locality, we already calculated how much we can
   // push to the local locality, check if we can push to local locality on current iteration.
   // If there aren't any local hosts in the local locality,
   // then state.local_percent_to_route_ is 0 and there's no need to check.
-  if (state.local_percent_to_route_ > 0 && random_.random() % 10000 < state.local_percent_to_route_) {
+  if (state.local_percent_to_route_ > 0 &&
+      random_.random() % 10000 < state.local_percent_to_route_) {
     stats_.lb_zone_routing_sampled_.inc();
     return 0;
   }

@@ -4925,8 +4925,8 @@ TEST_F(HostSetImplLocalityTest, AllUnhealthy) {
       makeHostsPerLocality({{hosts[0]}, {hosts[1]}, {hosts[2]}});
   LocalityWeightsConstSharedPtr locality_weights{new LocalityWeights{1, 1, 1}};
   auto hosts_const_shared = std::make_shared<const HostVector>(hosts);
-  host_set_.updateHosts(updateHostsParams(hosts_const_shared, hosts_per_locality), locality_weights, {}, {},
-                        absl::nullopt);
+  host_set_.updateHosts(updateHostsParams(hosts_const_shared, hosts_per_locality), locality_weights,
+                        {}, {}, absl::nullopt);
   EXPECT_FALSE(host_set_.chooseHealthyLocality().has_value());
 }
 
@@ -4942,7 +4942,7 @@ TEST_F(HostSetImplLocalityTest, NotWarmedHostsLocality) {
                    makeTestHost(info_, "tcp://127.0.0.1:82", simTime(), zone_a),
                    makeTestHost(info_, "tcp://127.0.0.1:83", simTime(), zone_b),
                    makeTestHost(info_, "tcp://127.0.0.1:84", simTime(), zone_b)};
-                   
+
   // We have two localities with 3 hosts in A, 2 hosts in B. Two of the hosts in A are not
   // warmed yet, so even though they are unhealthy we should not adjust the locality weight.
   HostsPerLocalitySharedPtr hosts_per_locality =
@@ -5105,8 +5105,8 @@ TEST_F(HostSetImplLocalityTest, UnhealthyFailover) {
 
   const auto setHealthyHostCount = [this, hosts](uint32_t host_count) {
     LocalityWeightsConstSharedPtr locality_weights{new LocalityWeights{1, 2}};
-    HostsPerLocalitySharedPtr hosts_per_locality = makeHostsPerLocality(
-        {{hosts[0], hosts[1], hosts[2], hosts[3], hosts[4]}, {hosts[5]}});
+    HostsPerLocalitySharedPtr hosts_per_locality =
+        makeHostsPerLocality({{hosts[0], hosts[1], hosts[2], hosts[3], hosts[4]}, {hosts[5]}});
     HostVector healthy_hosts;
     for (uint32_t i = 0; i < host_count; ++i) {
       healthy_hosts.emplace_back(hosts[i]);

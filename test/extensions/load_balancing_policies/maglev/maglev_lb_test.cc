@@ -369,7 +369,8 @@ TEST_P(MaglevLoadBalancerTest, Weighted) {
 
 // Locality weighted sanity test when localities have the same weights. Host weights for hosts in
 // different localities shouldn't matter.
-TEST_P(MaglevLoadBalancerTest, LocalityWeightedSameLocalityWeights) {envoy::config::core::v3::Locality zone_a;
+TEST_P(MaglevLoadBalancerTest, LocalityWeightedSameLocalityWeights) {
+  envoy::config::core::v3::Locality zone_a;
   zone_a.set_zone("A");
   envoy::config::core::v3::Locality zone_b;
   zone_b.set_zone("B");

@@ -400,19 +400,18 @@ private:
   uint32_t tryChooseLocalLocalityHosts(const HostSet& host_set) const;
 
   /**
-   * @return combined per-locality information about percentages of local/upstream hosts in each locality.
-   * See LocalityPercentages for more details.
+   * @return combined per-locality information about percentages of local/upstream hosts in each
+   * locality. See LocalityPercentages for more details.
    */
-  LocalityPercentagesPtr calculateLocalityPercentages(
-    const HostsPerLocality& local_hosts_per_locality,
-    const HostsPerLocality& upstream_hosts_per_locality);
+  LocalityPercentagesPtr
+  calculateLocalityPercentages(const HostsPerLocality& local_hosts_per_locality,
+                               const HostsPerLocality& upstream_hosts_per_locality);
 
   /**
    * Asserts that the class's assumptions about local and upstream HostsPerLocality hold.
    */
-  void assertLocalityPerHostAssumptions(
-    const HostsPerLocality& local_hosts_per_locality,
-    const HostsPerLocality& upstream_hosts_per_locality);
+  void assertLocalityPerHostAssumptions(const HostsPerLocality& local_hosts_per_locality,
+                                        const HostsPerLocality& upstream_hosts_per_locality);
 
   /**
    * Regenerate locality aware routing structures for fast decisions on upstream locality selection.
