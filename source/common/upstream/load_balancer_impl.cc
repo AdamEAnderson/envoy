@@ -544,9 +544,6 @@ void ZoneAwareLoadBalancerBase::regenerateLocalityRoutingStructures() {
 
     ++percentage_index_it;
   }
-
-  ENVOY_LOG(trace, "residual capacities: {}", state.residual_capacity_);
-  ENVOY_LOG(trace, "local percent to route: {}", state.local_percent_to_route_);
 }
 
 void ZoneAwareLoadBalancerBase::resizePerPriorityState() {
@@ -727,7 +724,6 @@ ZoneAwareLoadBalancerBase::LocalityPercentagesPtr ZoneAwareLoadBalancerBase::cal
     }
   }
 
-  ENVOY_LOG(trace, "returning from calculateLocalityPercentages() {}, {}, {}", local_percentage, upstream_percentage, upstream_to_percentage_index);
   return std::make_unique<LocalityPercentages>(
     LocalityPercentages{
       std::move(local_percentage),
