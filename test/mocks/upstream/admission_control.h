@@ -1,10 +1,11 @@
 #pragma once
 
+#include <cstdint>
+
 #include "envoy/upstream/admission_control.h"
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
-#include <cstdint>
+#include "gtest/gtest.h"
 
 namespace Envoy {
 namespace Upstream {

@@ -14,8 +14,8 @@
 #include "test/mocks/router/mocks.h"
 #include "test/mocks/runtime/mocks.h"
 #include "test/mocks/stats/mocks.h"
-#include "test/mocks/upstream/cluster_info.h"
 #include "test/mocks/upstream/admission_control.h"
+#include "test/mocks/upstream/cluster_info.h"
 #include "test/test_common/printers.h"
 #include "test/test_common/simulated_time_system.h"
 #include "test/test_common/test_runtime.h"
@@ -59,7 +59,8 @@ public:
 
     state_ = RetryStateImpl::create(policy_, request_headers, cluster_, &virtual_cluster_,
                                     route_stats_context_, runtime_, random_, dispatcher_,
-                                    test_time_.timeSystem(), Upstream::ResourcePriority::Default, retry_admission_controller_);
+                                    test_time_.timeSystem(), Upstream::ResourcePriority::Default,
+                                    retry_admission_controller_);
   }
 
   void expectTimerCreateAndEnable() {

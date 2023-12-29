@@ -1,14 +1,15 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <chrono>
 
 #include "envoy/common/pure.h"
-#include "absl/types/optional.h"
 #include "envoy/config/typed_config.h"
 #include "envoy/stream_info/stream_info.h"
+
+#include "absl/types/optional.h"
 
 namespace Envoy {
 namespace Upstream {
@@ -16,7 +17,8 @@ namespace Upstream {
 /**
  * An admission controller that determines if a retry should be allowed for a single stream.
  * The controller is instantiated once for each stream, and is shared by all tries.
- * The controller should be destroyed once a winning upstream try has been chosen to be proxied downstream.
+ * The controller should be destroyed once a winning upstream try has been chosen to be proxied
+ downstream.
  *
  * A try is defined as a single attempt to send a request to the upstream.
  * The lifecycle of a try is as follows:
@@ -32,7 +34,8 @@ namespace Upstream {
  * When the stream admission controller is destroyed, all outstanding tries are considered aborted.
  *
  * The controller needs to track the lifecycle of each try, retry or otherwise, so that it can
- * make informed admission decisions, both within this stream and for other streams routed to the same cluster.
+ * make informed admission decisions, both within this stream and for other streams routed to the
+ same cluster.
  */
 class RetryStreamAdmissionController {
 public:
@@ -71,12 +74,14 @@ public:
 
   /**
    * Called when a try has been aborted and the abort isn't due to an admitted retry for the try.
-   * 
+   *
    * There are many reasons why a try may be aborted, including:
    * - The stream is reset by the downstream.
    * - Multiple tries are in-flight and one has succeeded.
-   * - The retry buffer for replaying request data becomes full while a retry is scheduled but not yet started.
-   * - The upstream cluster is removed between tries when this try is scheduled, but not yet started.
+   * - The retry buffer for replaying request data becomes full while a retry is scheduled but not
+   * yet started.
+   * - The upstream cluster is removed between tries when this try is scheduled, but not yet
+   * started.
    * - The try had a stream timeout or reset.
    *
    * An aborted try is considered done, and will never be considered successful.
@@ -92,14 +97,16 @@ public:
    * A try may only be retried once.
    *
    * @param previous_attempt_number the number of the try that the router wants to re-attempt.
-   * @param retry_attempt_number the number of the new retry attempt, valid only if the retry is admitted.
+   * @param retry_attempt_number the number of the new retry attempt, valid only if the retry is
+   admitted.
    *                             If admitted, the new try will begin in the "scheduled" phase.
    * @param abort_previous_on_retry true if and only if the previous try isn't already aborted,
                                     and accepting the proposed retry implies that the previous
                                     try becomes aborted.
    * @return true if and only if the retry is admitted.
    */
-  virtual bool isRetryAdmitted(uint64_t previous_attempt_number, uint64_t retry_attempt_number, bool abort_previous_on_retry) PURE;
+  virtual bool isRetryAdmitted(uint64_t previous_attempt_number, uint64_t retry_attempt_number,
+                               bool abort_previous_on_retry) PURE;
 };
 
 using RetryStreamAdmissionControllerPtr = std::unique_ptr<RetryStreamAdmissionController>;
@@ -117,7 +124,7 @@ using RetryStreamAdmissionControllerPtr = std::unique_ptr<RetryStreamAdmissionCo
 class RetryAdmissionController {
 public:
   virtual ~RetryAdmissionController() = default;
-  
+
   /**
    * Create a new admission controller for a stream.
    * This must be called when a stream is first routed to a cluster,
@@ -125,7 +132,8 @@ public:
    *
    * @param request_stream_info the stream info for the downstream.
    */
-  virtual RetryStreamAdmissionControllerPtr createStreamAdmissionController(const StreamInfo::StreamInfo& request_stream_info) PURE;
+  virtual RetryStreamAdmissionControllerPtr
+  createStreamAdmissionController(const StreamInfo::StreamInfo& request_stream_info) PURE;
 };
 
 using RetryAdmissionControllerSharedPtr = std::shared_ptr<RetryAdmissionController>;

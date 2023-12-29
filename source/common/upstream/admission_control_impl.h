@@ -8,20 +8,20 @@
 #include "envoy/config/core/v3/extension.pb.h"
 #include "envoy/upstream/admission_control.h"
 
-#include "source/common/config/utility.h"
 #include "source/common/common/assert.h"
+#include "source/common/config/utility.h"
 
 namespace Envoy {
 namespace Upstream {
 class AdmissionControlImpl : public AdmissionControl {
 public:
   AdmissionControlImpl(const envoy::config::core::v3::TypedExtensionConfig& retry) {
-    auto& factory = Config::Utility::getAndCheckFactory<
-      RetryAdmissionControllerFactory>(retry);
+    auto& factory = Config::Utility::getAndCheckFactory<RetryAdmissionControllerFactory>(retry);
     retry_ = factory.createAdmissionController(retry.typed_config());
   }
 
   RetryAdmissionControllerSharedPtr retry() override { return retry_; }
+
 private:
   RetryAdmissionControllerSharedPtr retry_;
 };

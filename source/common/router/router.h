@@ -611,14 +611,13 @@ public:
 
 private:
   // Filter
-  RetryStatePtr createRetryState(const RetryPolicy& policy, Http::RequestHeaderMap& request_headers,
-                                 const Upstream::ClusterInfo& cluster,
-                                 const VirtualCluster* vcluster,
-                                 RouteStatsContextOptRef route_stats_context,
-                                 Runtime::Loader& runtime, Random::RandomGenerator& random,
-                                 Event::Dispatcher& dispatcher, TimeSource& time_source,
-                                 Upstream::ResourcePriority priority,
-                                 Upstream::RetryStreamAdmissionController& retry_admission_controller) override;
+  RetryStatePtr
+  createRetryState(const RetryPolicy& policy, Http::RequestHeaderMap& request_headers,
+                   const Upstream::ClusterInfo& cluster, const VirtualCluster* vcluster,
+                   RouteStatsContextOptRef route_stats_context, Runtime::Loader& runtime,
+                   Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
+                   TimeSource& time_source, Upstream::ResourcePriority priority,
+                   Upstream::RetryStreamAdmissionController& retry_admission_controller) override;
 };
 
 } // namespace Router

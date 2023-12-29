@@ -72,6 +72,7 @@ envoy_cc_mock(
     name = "upstream_mocks",
     hdrs = ["mocks.h"],
     deps = [
+        ":admission_control_mocks",
         ":basic_resource_limit_mocks",
         ":cds_api_mocks",
         ":cluster_discovery_callback_handle_mocks",
@@ -95,7 +96,6 @@ envoy_cc_mock(
         ":retry_host_predicate_mocks",
         ":retry_priority_factory_mocks",
         ":retry_priority_mocks",
-        ":admission_control_mocks",
         ":test_retry_host_predicate_factory_mocks",
         ":thread_aware_load_balancer_mocks",
         ":thread_local_cluster_mocks",

@@ -78,8 +78,7 @@ RetryStateImpl::RetryStateImpl(const RetryPolicy& route_policy,
       retriable_headers_(route_policy.retriableHeaders()),
       reset_headers_(route_policy.resetHeaders()),
       reset_max_interval_(route_policy.resetMaxInterval()),
-      retry_admission_controller_(retry_admission_controller),
-      retry_on_(route_policy.retryOn()),
+      retry_admission_controller_(retry_admission_controller), retry_on_(route_policy.retryOn()),
       retries_remaining_(route_policy.numRetries()), priority_(priority),
       auto_configured_for_http3_(auto_configured_for_http3) {
   if ((cluster.features() & Upstream::ClusterInfo::Features::HTTP3) &&
@@ -269,7 +268,8 @@ void RetryStateImpl::resetRetry() {
   }
 }
 
-RetryStatus RetryStateImpl::shouldRetry(RetryDecision would_retry, DoRetryCallback callback, bool is_hedged_timeout_retry) {
+RetryStatus RetryStateImpl::shouldRetry(RetryDecision would_retry, DoRetryCallback callback,
+                                        bool is_hedged_timeout_retry) {
   // If a callback is armed from a previous shouldRetry and we don't need to
   // retry this particular request, we can infer that we did a retry earlier
   // and it was successful.
@@ -319,7 +319,8 @@ RetryStatus RetryStateImpl::shouldRetry(RetryDecision would_retry, DoRetryCallba
     return RetryStatus::No;
   }
 
-  bool retry_admitted = retry_admission_controller_.isRetryAdmitted(attempt_number_, attempt_number_ + 1, !is_hedged_timeout_retry);
+  bool retry_admitted = retry_admission_controller_.isRetryAdmitted(
+      attempt_number_, attempt_number_ + 1, !is_hedged_timeout_retry);
   if (!retry_admitted) {
     return RetryStatus::NoOverflow;
   }
@@ -362,8 +363,8 @@ RetryStatus RetryStateImpl::shouldRetryHeaders(const Http::ResponseHeaderMap& re
     }
   }
 
-  return shouldRetry(retry_decision,
-                     [disable_early_data, callback]() { callback(disable_early_data); }, false);
+  return shouldRetry(
+      retry_decision, [disable_early_data, callback]() { callback(disable_early_data); }, false);
 }
 
 RetryStatus RetryStateImpl::shouldRetryReset(Http::StreamResetReason reset_reason,
@@ -372,7 +373,8 @@ RetryStatus RetryStateImpl::shouldRetryReset(Http::StreamResetReason reset_reaso
   // Following wouldRetryFromReset() may override the value.
   bool disable_http3 = false;
   const RetryDecision retry_decision = wouldRetryFromReset(reset_reason, http3_used, disable_http3);
-  return shouldRetry(retry_decision, [disable_http3, callback]() { callback(disable_http3); }, false);
+  return shouldRetry(
+      retry_decision, [disable_http3, callback]() { callback(disable_http3); }, false);
 }
 
 RetryStatus RetryStateImpl::shouldHedgeRetryPerTryTimeout(DoRetryCallback callback) {

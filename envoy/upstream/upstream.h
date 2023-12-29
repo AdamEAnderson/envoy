@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "admission_control.h"
 #include "envoy/common/callback.h"
 #include "envoy/common/optref.h"
 #include "envoy/config/cluster/v3/cluster.pb.h"
@@ -32,6 +31,7 @@
 
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "admission_control.h"
 #include "fmt/format.h"
 
 namespace Envoy {

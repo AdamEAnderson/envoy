@@ -41,6 +41,7 @@
 #include "source/common/runtime/runtime_features.h"
 #include "source/common/stream_info/uint32_accessor_impl.h"
 #include "source/common/tracing/http_tracer_impl.h"
+
 #include "upstream_request.h"
 
 namespace Envoy {
@@ -711,13 +712,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
   // Ensure an http transport scheme is selected before continuing with decoding.
   ASSERT(headers.Scheme());
 
-  retry_admission_controller_ = cluster_->admissionControl(route_entry_->priority()).retry()->createStreamAdmissionController(*requestStreamInfo());
+  retry_admission_controller_ = cluster_->admissionControl(route_entry_->priority())
+                                    .retry()
+                                    ->createStreamAdmissionController(*requestStreamInfo());
 
-  retry_state_ =
-      createRetryState(route_entry_->retryPolicy(), headers, *cluster_, request_vcluster_,
-                       route_stats_context_, config_.runtime_, config_.random_,
-                       callbacks_->dispatcher(), config_.timeSource(), route_entry_->priority(),
-                       *retry_admission_controller_);
+  retry_state_ = createRetryState(route_entry_->retryPolicy(), headers, *cluster_,
+                                  request_vcluster_, route_stats_context_, config_.runtime_,
+                                  config_.random_, callbacks_->dispatcher(), config_.timeSource(),
+                                  route_entry_->priority(), *retry_admission_controller_);
 
   // Determine which shadow policies to use. It's possible that we don't do any shadowing due to
   // runtime keys. Also the method CONNECT doesn't support shadowing.
@@ -2073,9 +2075,9 @@ ProdFilter::createRetryState(const RetryPolicy& policy, Http::RequestHeaderMap& 
                              Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
                              TimeSource& time_source, Upstream::ResourcePriority priority,
                              Upstream::RetryStreamAdmissionController& retry_admission_controller) {
-  std::unique_ptr<RetryStateImpl> retry_state =
-      RetryStateImpl::create(policy, request_headers, cluster, vcluster, route_stats_context,
-                             runtime, random, dispatcher, time_source, priority, retry_admission_controller);
+  std::unique_ptr<RetryStateImpl> retry_state = RetryStateImpl::create(
+      policy, request_headers, cluster, vcluster, route_stats_context, runtime, random, dispatcher,
+      time_source, priority, retry_admission_controller);
   if (retry_state != nullptr && retry_state->isAutomaticallyConfiguredForHttp3()) {
     // Since doing retry will make Envoy to buffer the request body, if upstream using HTTP/3 is the
     // only reason for doing retry, set the retry shadow buffer limit to 0 so that we don't retry or

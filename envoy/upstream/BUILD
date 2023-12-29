@@ -132,8 +132,8 @@ envoy_cc_library(
     hdrs = ["admission_control.h"],
     deps = [
         "//envoy/config:typed_config_interface",
-        "//envoy/upstream:types_interface",
         "//envoy/stream_info:stream_info_interface",
+        "//envoy/upstream:types_interface",
     ],
 )
 
@@ -167,11 +167,11 @@ envoy_cc_library(
     hdrs = ["upstream.h"],
     external_deps = ["abseil_optional"],
     deps = [
+        ":admission_control_interface",
         ":health_check_host_monitor_interface",
         ":load_balancer_type_interface",
         ":locality_lib",
         ":resource_manager_interface",
-        ":admission_control_interface",
         "//envoy/common:callback",
         "//envoy/config:subscription_interface",
         "//envoy/config:typed_metadata_interface",

@@ -1,10 +1,11 @@
 #pragma once
 
+#include <memory>
+
 #include "envoy/extensions/retry/admission_control/concurrency_budget/v3/concurrency_budget_config.pb.validate.h"
 #include "envoy/upstream/admission_control.h"
 
 #include "concurrency_budget.h"
-#include <memory>
 
 namespace Envoy {
 namespace Extensions {
@@ -19,12 +20,12 @@ public:
   std::string name() const override { return "envoy.retry_admission_control.concurrency_budget"; }
 
   ProtobufTypes::MessagePtr createEmptyConfigProto() override {
-    return std::make_unique<
-        envoy::extensions::retry::admission_control::concurrency_budget::v3::ConcurrencyBudgetConfig>();
+    return std::make_unique<envoy::extensions::retry::admission_control::concurrency_budget::v3::
+                                ConcurrencyBudgetConfig>();
   }
 };
 
-} // namespace Host
+} // namespace AdmissionControl
 } // namespace Retry
 } // namespace Extensions
 } // namespace Envoy

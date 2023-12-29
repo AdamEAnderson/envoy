@@ -15,6 +15,7 @@ envoy_cc_library(
     hdrs = ["static_limits.h"],
     deps = [
         "//envoy/upstream:admission_control_interface",
+        "@envoy_api//envoy/extensions/retry/admission_control/static_limits/v3:pkg_cc_proto",
     ],
 )
 

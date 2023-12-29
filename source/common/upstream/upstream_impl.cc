@@ -1797,10 +1797,8 @@ ClusterInfoImpl::ResourceManagers::ResourceManagers(
 
 ClusterInfoImpl::AdmissionControls::AdmissionControls(
     const envoy::config::cluster::v3::Cluster& config) {
-  controls_[enumToInt(ResourcePriority::Default)] =
-      load(config, envoy::config::core::v3::DEFAULT);
-  controls_[enumToInt(ResourcePriority::High)] =
-      load(config, envoy::config::core::v3::HIGH);
+  controls_[enumToInt(ResourcePriority::Default)] = load(config, envoy::config::core::v3::DEFAULT);
+  controls_[enumToInt(ResourcePriority::High)] = load(config, envoy::config::core::v3::HIGH);
 }
 
 ClusterCircuitBreakersStats
@@ -1976,9 +1974,8 @@ ClusterInfoImpl::ResourceManagers::load(const envoy::config::cluster::v3::Cluste
 }
 
 AdmissionControlImplSharedPtr
-ClusterInfoImpl::AdmissionControls::load(
-  const envoy::config::cluster::v3::Cluster &config,
-  const envoy::config::core::v3::RoutingPriority &priority) {
+ClusterInfoImpl::AdmissionControls::load(const envoy::config::cluster::v3::Cluster& config,
+                                         const envoy::config::core::v3::RoutingPriority& priority) {
 
   const auto& thresholds = config.circuit_breakers().thresholds();
   const auto it = std::find_if(
@@ -1986,7 +1983,7 @@ ClusterInfoImpl::AdmissionControls::load(
       [priority](const envoy::config::cluster::v3::CircuitBreakers::Thresholds& threshold) {
         return threshold.priority() == priority;
       });
-  
+
   envoy::config::core::v3::TypedExtensionConfig retry_admission_control;
   if (it != thresholds.cend()) {
     retry_admission_control = (*it).retry_admission_control();
