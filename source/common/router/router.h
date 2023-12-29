@@ -502,7 +502,8 @@ private:
                    const Upstream::ClusterInfo& cluster, const VirtualCluster* vcluster,
                    RouteStatsContextOptRef route_stats_context, Runtime::Loader& runtime,
                    Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
-                   TimeSource& time_source, Upstream::ResourcePriority priority) PURE;
+                   TimeSource& time_source, Upstream::ResourcePriority priority,
+                   Upstream::RetryStreamAdmissionController& retry_admission_controller) PURE;
 
   std::unique_ptr<GenericConnPool>
   createConnPool(Upstream::ThreadLocalCluster& thread_local_cluster);
@@ -553,6 +554,7 @@ private:
                          std::function<void(Http::ResponseHeaderMap&)>& modify_headers);
 
   RetryStatePtr retry_state_;
+  Upstream::RetryStreamAdmissionControllerPtr retry_admission_controller_;
   FilterConfig& config_;
   Http::StreamDecoderFilterCallbacks* callbacks_{};
   RouteConstSharedPtr route_;
@@ -615,7 +617,8 @@ private:
                                  RouteStatsContextOptRef route_stats_context,
                                  Runtime::Loader& runtime, Random::RandomGenerator& random,
                                  Event::Dispatcher& dispatcher, TimeSource& time_source,
-                                 Upstream::ResourcePriority priority) override;
+                                 Upstream::ResourcePriority priority,
+                                 Upstream::RetryStreamAdmissionController& retry_admission_controller) override;
 };
 
 } // namespace Router

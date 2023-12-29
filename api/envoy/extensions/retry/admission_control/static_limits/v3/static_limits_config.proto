@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package envoy.extensions.retry.admission_control.static_limits.v3;
+
+import "udpa/annotations/status.proto";
+import "udpa/annotations/versioning.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.retry.admission_control.static_limits.v3";
+option java_outer_classname = "StaticLimitsConfigProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/envoy/extensions/retry/admission_control/static_limits/v3;static_limitsv3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+
+// [#extension: envoy.retry_admission_control.static_limits]
+message StaticLimitsConfig {
+  uint64 max_concurrent_retries = 1;
+}

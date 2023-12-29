@@ -95,6 +95,7 @@ envoy_cc_mock(
         ":retry_host_predicate_mocks",
         ":retry_priority_factory_mocks",
         ":retry_priority_mocks",
+        ":admission_control_mocks",
         ":test_retry_host_predicate_factory_mocks",
         ":thread_aware_load_balancer_mocks",
         ":thread_local_cluster_mocks",
@@ -379,5 +380,14 @@ envoy_cc_mock(
     hdrs = ["basic_resource_limit.h"],
     deps = [
         "//envoy/common:resource_interface",
+    ],
+)
+
+envoy_cc_mock(
+    name = "admission_control_mocks",
+    srcs = ["admission_control.cc"],
+    hdrs = ["admission_control.h"],
+    deps = [
+        "//envoy/upstream:admission_control_interface",
     ],
 )

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package envoy.extensions.retry.admission_control.concurrency_budget.v3;
+
+import "envoy/type/v3/percent.proto";
+import "udpa/annotations/status.proto";
+import "udpa/annotations/versioning.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.retry.admission_control.concurrency_budget.v3";
+option java_outer_classname = "ConcurrencyBudgetConfigProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/envoy/extensions/retry/admission_control/concurrency_budget/v3;concurrency_budgetv3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+
+// [#extension: envoy.retry_admission_control.concurrency_budget]
+message ConcurrencyBudgetConfig {
+  uint64 min_concurrent_retry_limit = 1;
+  type.v3.Percent budget_percent = 2;
+}

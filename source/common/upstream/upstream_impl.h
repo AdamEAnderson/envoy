@@ -12,6 +12,7 @@
 #include <variant>
 #include <vector>
 
+#include "admission_control_impl.h"
 #include "envoy/common/callback.h"
 #include "envoy/common/optref.h"
 #include "envoy/common/time.h"
@@ -951,6 +952,7 @@ public:
     return name_;
   }
   ResourceManager& resourceManager(ResourcePriority priority) const override;
+  AdmissionControl& admissionControl(ResourcePriority priority) const override;
   TransportSocketMatcher& transportSocketMatcher() const override { return *socket_matcher_; }
   DeferredCreationCompatibleClusterTrafficStats& trafficStats() const override {
     return traffic_stats_;
@@ -1079,6 +1081,16 @@ private:
     const ClusterCircuitBreakersStatNames& circuit_breakers_stat_names_;
   };
 
+  struct AdmissionControls {
+    AdmissionControls(const envoy::config::cluster::v3::Cluster& config);
+    AdmissionControlImplSharedPtr load(const envoy::config::cluster::v3::Cluster& config,
+                                       const envoy::config::core::v3::RoutingPriority& priority);
+
+    using Controls = std::array<AdmissionControlImplSharedPtr, NumResourcePriorities>;
+
+    Controls controls_;
+  };
+
   struct OptionalClusterStats {
     OptionalClusterStats(const envoy::config::cluster::v3::Cluster& config,
                          Stats::Scope& stats_scope, const ClusterManager& manager);
@@ -1114,6 +1126,7 @@ private:
   const std::unique_ptr<OptionalClusterStats> optional_cluster_stats_;
   const uint64_t features_;
   mutable ResourceManagers resource_managers_;
+  mutable AdmissionControls admission_controls_;
   const std::string maintenance_mode_runtime_key_;
   UpstreamLocalAddressSelectorConstSharedPtr upstream_local_address_selector_;
   std::unique_ptr<const LBPolicyConfig> lb_policy_config_;

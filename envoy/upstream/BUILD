@@ -128,6 +128,16 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "admission_control_interface",
+    hdrs = ["admission_control.h"],
+    deps = [
+        "//envoy/config:typed_config_interface",
+        "//envoy/upstream:types_interface",
+        "//envoy/stream_info:stream_info_interface",
+    ],
+)
+
+envoy_cc_library(
     name = "resource_manager_interface",
     hdrs = ["resource_manager.h"],
     deps = ["//envoy/common:resource_interface"],
@@ -161,6 +171,7 @@ envoy_cc_library(
         ":load_balancer_type_interface",
         ":locality_lib",
         ":resource_manager_interface",
+        ":admission_control_interface",
         "//envoy/common:callback",
         "//envoy/config:subscription_interface",
         "//envoy/config:typed_metadata_interface",

@@ -391,6 +391,15 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "admission_control_lib",
+    hdrs = ["admission_control_impl.h"],
+    deps = [
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+        "//envoy/upstream:admission_control_interface",
+    ],
+)
+
+envoy_cc_library(
     name = "thread_aware_lb_lib",
     srcs = ["thread_aware_lb_impl.cc"],
     hdrs = ["thread_aware_lb_impl.h"],
@@ -473,6 +482,7 @@ envoy_cc_library(
     deps = [
         ":load_balancer_lib",
         ":resource_manager_lib",
+        ":admission_control_lib",
         ":upstream_factory_context_lib",
         "//envoy/event:timer_interface",
         "//envoy/local_info:local_info_interface",
@@ -548,6 +558,7 @@ envoy_cc_library(
         ":load_balancer_lib",
         ":outlier_detection_lib",
         ":resource_manager_lib",
+        ":admission_control_lib",
         ":upstream_includes",
         "//envoy/event:timer_interface",
         "//envoy/local_info:local_info_interface",

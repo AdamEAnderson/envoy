@@ -1,0 +1,30 @@
+#pragma once
+
+#include "envoy/extensions/retry/admission_control/concurrency_budget/v3/concurrency_budget_config.pb.validate.h"
+#include "envoy/upstream/admission_control.h"
+
+#include "concurrency_budget.h"
+#include <memory>
+
+namespace Envoy {
+namespace Extensions {
+namespace Retry {
+namespace AdmissionControl {
+
+class ConcurrencyBudgetFactory : public Upstream::RetryAdmissionControllerFactory {
+public:
+  Upstream::RetryAdmissionControllerSharedPtr
+  createAdmissionController(const Protobuf::Message& config) override;
+
+  std::string name() const override { return "envoy.retry_admission_control.concurrency_budget"; }
+
+  ProtobufTypes::MessagePtr createEmptyConfigProto() override {
+    return std::make_unique<
+        envoy::extensions::retry::admission_control::concurrency_budget::v3::ConcurrencyBudgetConfig>();
+  }
+};
+
+} // namespace Host
+} // namespace Retry
+} // namespace Extensions
+} // namespace Envoy

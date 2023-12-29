@@ -25,6 +25,7 @@
 #include "test/mocks/stats/mocks.h"
 #include "test/mocks/tcp/mocks.h"
 #include "test/mocks/upstream/basic_resource_limit.h"
+#include "test/mocks/upstream/admission_control.h"
 #include "test/mocks/upstream/cds_api.h"
 #include "test/mocks/upstream/cluster.h"
 #include "test/mocks/upstream/cluster_discovery_callback_handle.h"

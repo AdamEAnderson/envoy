@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "admission_control.h"
 #include "envoy/common/callback.h"
 #include "envoy/common/optref.h"
 #include "envoy/config/cluster/v3/cluster.pb.h"
@@ -1126,6 +1127,12 @@ public:
    *         a particular priority).
    */
   virtual ResourceManager& resourceManager(ResourcePriority priority) const PURE;
+
+  /**
+   * @return AdmissionControl& the retry limiter to use for streams associated with this cluster
+   *         (at a particular priority).
+   */
+  virtual AdmissionControl& admissionControl(ResourcePriority priority) const PURE;
 
   /**
    * @return TransportSocketMatcher& the transport socket matcher associated

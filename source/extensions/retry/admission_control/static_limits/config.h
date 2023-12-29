@@ -1,0 +1,30 @@
+#pragma once
+
+#include "envoy/extensions/retry/admission_control/static_limits/v3/static_limits_config.pb.validate.h"
+#include "envoy/upstream/admission_control.h"
+
+#include "static_limits.h"
+#include <memory>
+
+namespace Envoy {
+namespace Extensions {
+namespace Retry {
+namespace AdmissionControl {
+
+class StaticLimitsFactory : public Upstream::RetryAdmissionControllerFactory {
+public:
+  Upstream::RetryAdmissionControllerSharedPtr
+  createAdmissionController(const Protobuf::Message& config) override;
+
+  std::string name() const override { return "envoy.retry_admission_control.static_limits"; }
+
+  ProtobufTypes::MessagePtr createEmptyConfigProto() override {
+    return std::make_unique<
+        envoy::extensions::retry::admission_control::static_limits::v3::StaticLimitsConfig>();
+  }
+};
+
+} // namespace Host
+} // namespace Retry
+} // namespace Extensions
+} // namespace Envoy
