@@ -13,6 +13,7 @@ envoy_cc_mock(
     srcs = ["cluster_info.cc"],
     hdrs = ["cluster_info.h"],
     deps = [
+        ":admission_control_mocks",
         ":transport_socket_match_mocks",
         "//envoy/upstream:cluster_manager_interface",
         "//envoy/upstream:upstream_interface",

@@ -10,6 +10,8 @@
 namespace Envoy {
 namespace Upstream {
 
+using testing::NiceMock;
+
 class MockRetryStreamAdmissionController : public RetryStreamAdmissionController {
 public:
   MockRetryStreamAdmissionController();
@@ -20,6 +22,37 @@ public:
   MOCK_METHOD(void, onSuccessfulTryFinished, ());
   MOCK_METHOD(void, onTryAborted, (uint64_t));
   MOCK_METHOD(bool, isRetryAdmitted, (uint64_t, uint64_t, bool));
+};
+
+using MockRetryStreamAdmissionControllerPtr =
+    std::unique_ptr<NiceMock<MockRetryStreamAdmissionController>>;
+
+class MockRetryAdmissionController : public RetryAdmissionController {
+public:
+  MockRetryAdmissionController();
+  ~MockRetryAdmissionController() override;
+
+  MOCK_METHOD(RetryStreamAdmissionControllerPtr, createStreamAdmissionController,
+              (const StreamInfo::StreamInfo&));
+
+private:
+  MockRetryStreamAdmissionControllerPtr stream_admission_controller_ptr_;
+
+public:
+  NiceMock<MockRetryStreamAdmissionController>& stream_admission_controller_;
+};
+
+using MockRetryAdmissionControllerSharedPtr =
+    std::shared_ptr<NiceMock<MockRetryAdmissionController>>;
+
+class MockAdmissionControl : public AdmissionControl {
+public:
+  MockAdmissionControl();
+  ~MockAdmissionControl() override;
+
+  MOCK_METHOD(RetryAdmissionControllerSharedPtr, retry, ());
+
+  MockRetryAdmissionControllerSharedPtr retry_admission_controller_;
 };
 
 } // namespace Upstream

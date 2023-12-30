@@ -269,7 +269,7 @@ void RetryStateImpl::resetRetry() {
 }
 
 RetryStatus RetryStateImpl::shouldRetry(RetryDecision would_retry, DoRetryCallback callback,
-                                        bool is_hedged_timeout_retry) {
+                                        bool abort_previous_on_retry) {
   // If a callback is armed from a previous shouldRetry and we don't need to
   // retry this particular request, we can infer that we did a retry earlier
   // and it was successful.
@@ -320,7 +320,7 @@ RetryStatus RetryStateImpl::shouldRetry(RetryDecision would_retry, DoRetryCallba
   }
 
   bool retry_admitted = retry_admission_controller_.isRetryAdmitted(
-      attempt_number_, attempt_number_ + 1, !is_hedged_timeout_retry);
+      attempt_number_, attempt_number_ + 1, abort_previous_on_retry);
   if (!retry_admitted) {
     return RetryStatus::NoOverflow;
   }
@@ -364,7 +364,7 @@ RetryStatus RetryStateImpl::shouldRetryHeaders(const Http::ResponseHeaderMap& re
   }
 
   return shouldRetry(
-      retry_decision, [disable_early_data, callback]() { callback(disable_early_data); }, false);
+      retry_decision, [disable_early_data, callback]() { callback(disable_early_data); }, true);
 }
 
 RetryStatus RetryStateImpl::shouldRetryReset(Http::StreamResetReason reset_reason,
@@ -385,7 +385,7 @@ RetryStatus RetryStateImpl::shouldHedgeRetryPerTryTimeout(DoRetryCallback callba
   // retries are associated with a stream reset which is analogous to a gateway
   // error. When hedging on per try timeout is enabled, however, there is no
   // stream reset.
-  return shouldRetry(RetryState::RetryDecision::RetryWithBackoff, callback, true);
+  return shouldRetry(RetryState::RetryDecision::RetryWithBackoff, callback, false);
 }
 
 RetryState::RetryDecision

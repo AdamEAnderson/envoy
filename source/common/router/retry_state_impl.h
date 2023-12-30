@@ -116,7 +116,7 @@ private:
   RetryDecision wouldRetryFromReset(const Http::StreamResetReason reset_reason,
                                     Http3Used http3_used, bool& disable_http3);
   RetryStatus shouldRetry(RetryDecision would_retry, DoRetryCallback callback,
-                          bool is_hedged_timeout_retry);
+                          bool abort_previous_on_retry);
 
   const Upstream::ClusterInfo& cluster_;
   const VirtualCluster* vcluster_;

@@ -1252,6 +1252,7 @@ TEST_F(RouterTest, UpstreamTimeoutAllStatsEmission) {
 
   Http::TestRequestHeaderMapImpl headers{{"x-envoy-retry-on", "5xx"}, {"x-envoy-internal", "true"}};
   HttpTestUtility::addDefaultHeaders(headers);
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
   router_->decodeHeaders(headers, false);
   Buffer::OwnedImpl data;
   router_->decodeData(data, true);
@@ -1261,6 +1262,7 @@ TEST_F(RouterTest, UpstreamTimeoutAllStatsEmission) {
   EXPECT_CALL(callbacks_.stream_info_,
               setResponseFlag(StreamInfo::ResponseFlag::UpstreamRequestTimeout));
   EXPECT_CALL(encoder.stream_, resetStream(Http::StreamResetReason::LocalReset));
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(1));
   Http::ResponseHeaderMapPtr response_headers(
       new Http::TestResponseHeaderMapImpl{{":status", "503"}});
   // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
@@ -1951,6 +1953,7 @@ TEST_F(RouterTest, UpstreamPerTryTimeout) {
   Http::TestRequestHeaderMapImpl headers{{"x-envoy-internal", "true"},
                                          {"x-envoy-upstream-rq-per-try-timeout-ms", "5"}};
   HttpTestUtility::addDefaultHeaders(headers);
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
   router_->decodeHeaders(headers, false);
 
   // We verify that both timeouts are started after decodeData(_, true) is called. This
@@ -1973,6 +1976,7 @@ TEST_F(RouterTest, UpstreamPerTryTimeout) {
   EXPECT_CALL(
       cm_.thread_local_cluster_.conn_pool_.host_->outlier_detector_,
       putResult(Upstream::Outlier::Result::LocalOriginTimeout, absl::optional<uint64_t>(504)));
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(1));
   per_try_timeout_->invokeCallback();
 
   EXPECT_EQ(1U, cm_.thread_local_cluster_.cluster_.info_->stats_store_
@@ -3575,6 +3579,7 @@ TEST_F(RouterTest, RetryUpstreamReset1xxResponseStarted) {
 
   Http::TestRequestHeaderMapImpl headers{{"x-envoy-retry-on", "5xx"}, {"x-envoy-internal", "true"}};
   HttpTestUtility::addDefaultHeaders(headers);
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
   router_->decodeHeaders(headers, true);
   EXPECT_EQ(1U,
             callbacks_.route_->route_entry_.virtual_cluster_.stats().upstream_rq_total_.value());
@@ -3583,6 +3588,7 @@ TEST_F(RouterTest, RetryUpstreamReset1xxResponseStarted) {
   // is reset we won't even check shouldRetryReset() (or shouldRetryHeaders()).
   EXPECT_CALL(*router_->retry_state_, shouldRetryReset(_, _, _)).Times(0);
   EXPECT_CALL(*router_->retry_state_, shouldRetryHeaders(_, _, _)).Times(0);
+  EXPECT_CALL(retry_admission_controller_, onTrySucceeded(1));
   EXPECT_CALL(callbacks_, encode1xxHeaders_(_));
   Http::ResponseHeaderMapPtr continue_headers(
       new Http::TestResponseHeaderMapImpl{{":status", "100"}});
@@ -3593,6 +3599,7 @@ TEST_F(RouterTest, RetryUpstreamReset1xxResponseStarted) {
       cm_.thread_local_cluster_.cluster_.info_->stats_store_.counter("upstream_rq_100").value());
   EXPECT_CALL(cm_.thread_local_cluster_.conn_pool_.host_->outlier_detector_,
               putResult(Upstream::Outlier::Result::LocalOriginConnectFailed, _));
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(1));
   encoder1.stream_.resetStream(Http::StreamResetReason::RemoteReset);
   EXPECT_EQ(1U,
             callbacks_.route_->route_entry_.virtual_cluster_.stats().upstream_rq_total_.value());
@@ -3760,8 +3767,10 @@ TEST_F(RouterTest, MaxStreamDurationWithRetryPolicy) {
   Http::TestRequestHeaderMapImpl headers{{"x-envoy-retry-on", "reset"},
                                          {"x-envoy-internal", "true"}};
   HttpTestUtility::addDefaultHeaders(headers);
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
   router_->decodeHeaders(headers, false);
 
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(1));
   router_->retry_state_->expectResetRetry();
   max_stream_duration_timer_->invokeCallback();
 
@@ -3771,10 +3780,13 @@ TEST_F(RouterTest, MaxStreamDurationWithRetryPolicy) {
   expectNewStreamWithImmediateEncoder(encoder2, &response_decoder, Http::Protocol::Http10);
 
   expectMaxStreamDurationTimerCreate(std::chrono::milliseconds(500));
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(2));
   router_->retry_state_->callback_();
 
   EXPECT_CALL(*router_->retry_state_, shouldRetryHeaders(_, _, _))
       .WillOnce(Return(RetryStatus::No));
+  EXPECT_CALL(retry_admission_controller_, onTrySucceeded(2));
+  EXPECT_CALL(retry_admission_controller_, onSuccessfulTryFinished());
   Http::ResponseHeaderMapPtr response_headers(
       new Http::TestResponseHeaderMapImpl{{":status", "200"}});
   response_decoder->decodeHeaders(std::move(response_headers), true);
@@ -6556,6 +6568,175 @@ TEST_F(RouterTest, RequestWithUpstreamOverrideHost) {
   response_decoder->decodeHeaders(std::move(response_headers_200), true);
 
   EXPECT_EQ(2, callbacks_.stream_info_.attemptCount().value());
+
+  router_->onDestroy();
+}
+
+TEST_F(RouterTest, RetryAdmissionControlOneSuccessfulTry) {
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
+  EXPECT_CALL(retry_admission_controller_, onTrySucceeded(1));
+  EXPECT_CALL(retry_admission_controller_, onSuccessfulTryFinished());
+  testRequestResponse(false);
+}
+
+TEST_F(RouterTest, RetryAdmissionControlOneAbortedTry) {
+  Http::TestRequestHeaderMapImpl headers;
+  HttpTestUtility::addDefaultHeaders(headers);
+  expectResponseTimerCreate();
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
+  router_->decodeHeaders(headers, true);
+
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(1));
+  router_->onDestroy();
+}
+
+TEST_F(RouterTest, RetryAdmissionControlRetryHeaders) {
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(_)).Times(0);
+
+  NiceMock<Http::MockRequestEncoder> encoder1;
+  Http::ResponseDecoder* response_decoder = nullptr;
+  expectNewStreamWithImmediateEncoder(encoder1, &response_decoder, Http::Protocol::Http10);
+
+  Http::TestRequestHeaderMapImpl headers{{"x-envoy-retry-on", "5xx"}};
+  HttpTestUtility::addDefaultHeaders(headers);
+  expectResponseTimerCreate();
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
+  router_->decodeHeaders(headers, true);
+
+  // without a mock in the way, expectHeadersRetry will call isRetryAdmitted
+  // which will abort attempt 1
+  router_->retry_state_->expectHeadersRetry();
+  Http::ResponseHeaderMapPtr response_headers1(
+      new Http::TestResponseHeaderMapImpl{{":status", "503"}});
+  EXPECT_CALL(cm_.thread_local_cluster_.conn_pool_.host_->outlier_detector_,
+              putHttpResponseCode(503));
+  response_decoder->decodeHeaders(std::move(response_headers1), true);
+
+  NiceMock<Http::MockRequestEncoder> encoder2;
+  expectNewStreamWithImmediateEncoder(encoder2, &response_decoder, Http::Protocol::Http10);
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(2));
+  router_->retry_state_->callback_();
+
+  EXPECT_CALL(*router_->retry_state_, shouldRetryHeaders(_, _, _))
+      .WillOnce(Return(RetryStatus::No));
+  Http::ResponseHeaderMapPtr response_headers2(
+      new Http::TestResponseHeaderMapImpl{{":status", "200"}});
+  EXPECT_CALL(cm_.thread_local_cluster_.conn_pool_.host_->outlier_detector_,
+              putHttpResponseCode(200));
+  EXPECT_CALL(retry_admission_controller_, onTrySucceeded(2));
+  EXPECT_CALL(retry_admission_controller_, onSuccessfulTryFinished());
+  response_decoder->decodeHeaders(std::move(response_headers2), true);
+
+  router_->onDestroy();
+}
+
+TEST_F(RouterTest, RetryAdmissionControlRetryReset) {
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(_)).Times(0);
+
+  NiceMock<Http::MockRequestEncoder> encoder1;
+  Http::ResponseDecoder* response_decoder = nullptr;
+  expectNewStreamWithImmediateEncoder(encoder1, &response_decoder, Http::Protocol::Http10);
+
+  Http::TestRequestHeaderMapImpl headers;
+  HttpTestUtility::addDefaultHeaders(headers);
+  expectResponseTimerCreate();
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
+  router_->decodeHeaders(headers, true);
+
+  router_->retry_state_->expectResetRetry();
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(1));
+  encoder1.stream_.resetStream(Http::StreamResetReason::RemoteReset);
+
+  NiceMock<Http::MockRequestEncoder> encoder2;
+  expectNewStreamWithImmediateEncoder(encoder2, &response_decoder, Http::Protocol::Http10);
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(2));
+  router_->retry_state_->callback_();
+
+  EXPECT_CALL(*router_->retry_state_, shouldRetryHeaders(_, _, _))
+      .WillOnce(Return(RetryStatus::No));
+  Http::ResponseHeaderMapPtr response_headers(
+      new Http::TestResponseHeaderMapImpl{{":status", "200"}});
+  EXPECT_CALL(cm_.thread_local_cluster_.conn_pool_.host_->outlier_detector_,
+              putHttpResponseCode(200));
+  EXPECT_CALL(retry_admission_controller_, onTrySucceeded(2));
+  EXPECT_CALL(retry_admission_controller_, onSuccessfulTryFinished());
+  response_decoder->decodeHeaders(std::move(response_headers), true);
+
+  router_->onDestroy();
+}
+
+TEST_F(RouterTest, RetryAdmissionControlTrySuccessWithData) {
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(_)).Times(0);
+
+  NiceMock<Http::MockRequestEncoder> encoder1;
+  Http::ResponseDecoder* response_decoder = nullptr;
+  expectNewStreamWithImmediateEncoder(encoder1, &response_decoder, Http::Protocol::Http10);
+
+  Http::TestRequestHeaderMapImpl headers;
+  HttpTestUtility::addDefaultHeaders(headers);
+  expectResponseTimerCreate();
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
+  router_->decodeHeaders(headers, true);
+
+  Http::ResponseHeaderMapPtr response_headers(
+      new Http::TestResponseHeaderMapImpl{{":status", "200"}});
+  EXPECT_CALL(cm_.thread_local_cluster_.conn_pool_.host_->outlier_detector_,
+              putHttpResponseCode(200));
+  EXPECT_CALL(retry_admission_controller_, onTrySucceeded(1));
+  response_decoder->decodeHeaders(std::move(response_headers), false);
+
+  EXPECT_CALL(retry_admission_controller_, onSuccessfulTryFinished());
+  auto data = Buffer::OwnedImpl("data");
+  response_decoder->decodeData(data, true);
+
+  router_->onDestroy();
+}
+
+TEST_F(RouterTest, RetryAdmissionControlHedgeOnPerTryTimeout) {
+  enableHedgeOnPerTryTimeout();
+
+  // Start try 1 going
+  NiceMock<Http::MockRequestEncoder> encoder1;
+  Http::ResponseDecoder* response_decoder1 = nullptr;
+  expectNewStreamWithImmediateEncoder(encoder1, &response_decoder1, Http::Protocol::Http10);
+
+  expectPerTryTimerCreate();
+  expectResponseTimerCreate();
+  Http::TestRequestHeaderMapImpl headers{{"x-envoy-upstream-rq-per-try-timeout-ms", "5"}};
+  HttpTestUtility::addDefaultHeaders(headers);
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(1));
+  router_->decodeHeaders(headers, true);
+
+  // Try 1 hits per try timeout and schedules a hedged retry
+  EXPECT_CALL(encoder1.stream_, resetStream(_)).Times(0);
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(1)).Times(0);
+  router_->retry_state_->expectHedgedPerTryTimeoutRetry();
+  per_try_timeout_->invokeCallback();
+
+  // Once the retry callback is called, try 2 starts
+  NiceMock<Http::MockRequestEncoder> encoder2;
+  Http::ResponseDecoder* response_decoder2 = nullptr;
+  expectNewStreamWithImmediateEncoder(encoder2, &response_decoder2, Http::Protocol::Http10);
+  expectPerTryTimerCreate();
+  EXPECT_CALL(retry_admission_controller_, onTryStarted(2));
+  router_->retry_state_->callback_();
+
+  // While try 2 is waiting for a response from upstream, try 1 gets a successfull response
+  Http::ResponseHeaderMapPtr response_headers(
+      new Http::TestResponseHeaderMapImpl{{":status", "200"}});
+  EXPECT_CALL(callbacks_, encodeHeaders_(_, _))
+      .WillOnce(Invoke([&](Http::ResponseHeaderMap& headers, bool end_stream) -> void {
+        EXPECT_EQ(headers.Status()->value(), "200");
+        EXPECT_TRUE(end_stream);
+      }));
+  EXPECT_CALL(*router_->retry_state_, shouldRetryHeaders(_, _, _)).Times(0);
+  EXPECT_CALL(*router_->retry_state_, wouldRetryFromHeaders(_, _, _))
+      .WillOnce(Return(RetryState::RetryDecision::NoRetry));
+  // Try 2 is aborted once try 1 succeeds since it isn't needed anymore
+  EXPECT_CALL(retry_admission_controller_, onTryAborted(2));
+  EXPECT_CALL(retry_admission_controller_, onTrySucceeded(1));
+  EXPECT_CALL(retry_admission_controller_, onSuccessfulTryFinished());
+  response_decoder1->decodeHeaders(std::move(response_headers), true);
 
   router_->onDestroy();
 }

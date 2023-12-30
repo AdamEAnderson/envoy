@@ -1583,6 +1583,83 @@ TEST_F(RouterRetryStateImplTest, RemoveAllRetryHeaders) {
   }
 }
 
+TEST_F(RouterRetryStateImplTest, RetryAdmissionControlAllowed) {
+  Http::TestRequestHeaderMapImpl request_headers{{"x-envoy-retry-on", "5xx"},
+                                                 {"x-envoy-max-retries", "42"}};
+  Http::TestResponseHeaderMapImpl response_headers{{":status", "500"}};
+
+  setup(request_headers);
+  EXPECT_TRUE(state_->enabled());
+
+  expectTimerCreateAndEnable();
+  EXPECT_CALL(retry_admission_controller_, isRetryAdmitted(1, 2, true)).WillOnce(Return(true));
+  EXPECT_EQ(RetryStatus::Yes,
+            state_->shouldRetryHeaders(response_headers, request_headers, header_callback_));
+}
+
+TEST_F(RouterRetryStateImplTest, RetryAdmissionControlDenied) {
+  Http::TestRequestHeaderMapImpl request_headers{{"x-envoy-retry-on", "5xx"},
+                                                 {"x-envoy-max-retries", "42"}};
+  Http::TestResponseHeaderMapImpl response_headers{{":status", "500"}};
+
+  setup(request_headers);
+  EXPECT_TRUE(state_->enabled());
+
+  EXPECT_CALL(retry_admission_controller_, isRetryAdmitted(1, 2, true)).WillOnce(Return(false));
+  EXPECT_EQ(RetryStatus::NoOverflow,
+            state_->shouldRetryHeaders(response_headers, request_headers, header_callback_));
+}
+
+TEST_F(RouterRetryStateImplTest, RetryAdmissionControlHedgedTimeout) {
+  Http::TestRequestHeaderMapImpl request_headers{
+      {"x-envoy-retry-on", "5xx"},
+      {"x-envoy-max-retries", "42"},
+      {"x-envoy-hedge-on-per-try-timeout", "true"},
+      {"x-envoy-upstream-rq-per-try-timeout-ms", "2"},
+  };
+
+  setup(request_headers);
+  EXPECT_TRUE(state_->enabled());
+
+  EXPECT_CALL(retry_admission_controller_, isRetryAdmitted(1, 2, false)).WillOnce(Return(false));
+  EXPECT_EQ(RetryStatus::NoOverflow, state_->shouldHedgeRetryPerTryTimeout(callback_));
+}
+
+TEST_F(RouterRetryStateImplTest, RetryAdmissionControlNoAbortPreviousOnReset) {
+  Http::TestRequestHeaderMapImpl request_headers{{"x-envoy-retry-on", "refused-stream"}};
+  setup(request_headers);
+  EXPECT_TRUE(state_->enabled());
+
+  EXPECT_CALL(retry_admission_controller_, isRetryAdmitted(1, 2, false)).WillOnce(Return(false));
+  EXPECT_EQ(RetryStatus::NoOverflow,
+            state_->shouldRetryReset(remote_refused_stream_reset_, RetryState::Http3Used::No,
+                                     reset_callback_));
+}
+
+TEST_F(RouterRetryStateImplTest, RetryAdmissionControlAttemptNumbers) {
+  Http::TestRequestHeaderMapImpl request_headers{{"x-envoy-retry-on", "5xx"},
+                                                 {"x-envoy-max-retries", "42"}};
+  Http::TestResponseHeaderMapImpl response_headers{{":status", "500"}};
+
+  setup(request_headers);
+  EXPECT_TRUE(state_->enabled());
+
+  retry_timer_ = new Event::MockTimer(&dispatcher_);
+  for (int64_t i = 1; i <= 10; i++) {
+    EXPECT_CALL(retry_admission_controller_, isRetryAdmitted(i, i + 1, true))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*retry_timer_, enableTimer(_, _));
+    EXPECT_EQ(RetryStatus::Yes,
+              state_->shouldRetryHeaders(response_headers, request_headers, header_callback_));
+    EXPECT_CALL(callback_ready_, ready());
+    retry_timer_->invokeCallback();
+  }
+
+  EXPECT_CALL(retry_admission_controller_, isRetryAdmitted(11, 12, true)).WillOnce(Return(false));
+  EXPECT_EQ(RetryStatus::NoOverflow,
+            state_->shouldRetryHeaders(response_headers, request_headers, header_callback_));
+}
+
 } // namespace
 } // namespace Router
 } // namespace Envoy
