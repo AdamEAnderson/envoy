@@ -20,7 +20,7 @@ Upstream::RetryAdmissionControllerSharedPtr
 StaticLimitsFactory::createAdmissionController(const Protobuf::Message& config) {
   const auto& static_limits_config = MessageUtil::downcastAndValidate<
       const envoy::extensions::retry::admission_control::static_limits::v3::StaticLimitsConfig&>(
-      config, ProtobufMessage::getStrictValidationVisitor());
+      config, ProtobufMessage::getNullValidationVisitor());
   return std::make_shared<StaticLimits>(static_limits_config.max_concurrent_retries());
 }
 

@@ -20,6 +20,8 @@
 #include "envoy/event/dispatcher.h"
 #include "envoy/event/timer.h"
 #include "envoy/extensions/filters/http/upstream_codec/v3/upstream_codec.pb.h"
+#include "envoy/extensions/retry/admission_control/concurrency_budget/v3/concurrency_budget_config.pb.h"
+#include "envoy/extensions/retry/admission_control/static_limits/v3/static_limits_config.pb.h"
 #include "envoy/extensions/transport_sockets/http_11_proxy/v3/upstream_http_11_connect.pb.h"
 #include "envoy/extensions/transport_sockets/raw_buffer/v3/raw_buffer.pb.h"
 #include "envoy/init/manager.h"
@@ -1976,7 +1978,6 @@ ClusterInfoImpl::ResourceManagers::load(const envoy::config::cluster::v3::Cluste
 AdmissionControlImplSharedPtr
 ClusterInfoImpl::AdmissionControls::load(const envoy::config::cluster::v3::Cluster& config,
                                          const envoy::config::core::v3::RoutingPriority& priority) {
-
   const auto& thresholds = config.circuit_breakers().thresholds();
   const auto it = std::find_if(
       thresholds.cbegin(), thresholds.cend(),
@@ -1984,12 +1985,49 @@ ClusterInfoImpl::AdmissionControls::load(const envoy::config::cluster::v3::Clust
         return threshold.priority() == priority;
       });
 
-  envoy::config::core::v3::TypedExtensionConfig retry_admission_control;
+  absl::optional<envoy::config::cluster::v3::CircuitBreakers::Thresholds> pri_thresholds =
+      absl::nullopt;
   if (it != thresholds.cend()) {
-    retry_admission_control = (*it).retry_admission_control();
+    pri_thresholds = *it;
   }
+  envoy::config::core::v3::TypedExtensionConfig retry_admission_control =
+      ClusterInfoImpl::getRetryAdmissionControlConfig(pri_thresholds);
 
   return std::make_shared<AdmissionControlImpl>(retry_admission_control);
+}
+
+envoy::config::core::v3::TypedExtensionConfig ClusterInfoImpl::getRetryAdmissionControlConfig(
+    const absl::optional<envoy::config::cluster::v3::CircuitBreakers::Thresholds>& thresholds) {
+  if (thresholds.has_value() && thresholds->has_retry_admission_control()) {
+    return thresholds->retry_admission_control();
+  } else if (thresholds.has_value() && thresholds->has_retry_budget()) {
+    envoy::config::core::v3::TypedExtensionConfig retry_admission_control;
+    retry_admission_control.set_name("envoy.retry_admission_control.concurrency_budget");
+    envoy::extensions::retry::admission_control::concurrency_budget::v3::ConcurrencyBudgetConfig
+        concurrency_budget;
+    double budget_percent = 20.0; // default
+    if (thresholds->retry_budget().has_budget_percent()) {
+      budget_percent = thresholds->retry_budget().budget_percent().value();
+    }
+    concurrency_budget.mutable_budget_percent()->set_value(budget_percent);
+    concurrency_budget.set_min_concurrent_retry_limit(
+        PROTOBUF_GET_WRAPPED_OR_DEFAULT(thresholds->retry_budget(), min_retry_concurrency, 3));
+    retry_admission_control.mutable_typed_config()->PackFrom(concurrency_budget);
+    return retry_admission_control;
+  } else {
+    uint64_t static_max_retries = 3; // default
+    if (thresholds.has_value()) {
+      static_max_retries =
+          PROTOBUF_GET_WRAPPED_OR_DEFAULT(*thresholds, max_retries, static_max_retries);
+    }
+    envoy::config::core::v3::TypedExtensionConfig retry_admission_control;
+    retry_admission_control.set_name("envoy.retry_admission_control.static_limits");
+    envoy::extensions::retry::admission_control::static_limits::v3::StaticLimitsConfig
+        static_limits;
+    static_limits.set_max_concurrent_retries(static_max_retries);
+    retry_admission_control.mutable_typed_config()->PackFrom(static_limits);
+    return retry_admission_control;
+  }
 }
 
 PriorityStateManager::PriorityStateManager(ClusterImplBase& cluster,

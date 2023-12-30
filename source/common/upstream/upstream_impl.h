@@ -15,9 +15,11 @@
 #include "envoy/common/callback.h"
 #include "envoy/common/optref.h"
 #include "envoy/common/time.h"
+#include "envoy/config/cluster/v3/circuit_breaker.pb.h"
 #include "envoy/config/cluster/v3/cluster.pb.h"
 #include "envoy/config/core/v3/address.pb.h"
 #include "envoy/config/core/v3/base.pb.h"
+#include "envoy/config/core/v3/extension.pb.h"
 #include "envoy/config/core/v3/health_check.pb.h"
 #include "envoy/config/core/v3/protocol.pb.h"
 #include "envoy/config/endpoint/v3/endpoint_components.pb.h"
@@ -1060,6 +1062,9 @@ protected:
   // budget message is specified, defaults will be filled in if either params are unspecified.
   static std::pair<absl::optional<double>, absl::optional<uint32_t>>
   getRetryBudgetParams(const envoy::config::cluster::v3::CircuitBreakers::Thresholds& thresholds);
+
+  static envoy::config::core::v3::TypedExtensionConfig getRetryAdmissionControlConfig(
+      const absl::optional<envoy::config::cluster::v3::CircuitBreakers::Thresholds>& thresholds);
 
 private:
   std::shared_ptr<UpstreamNetworkFilterConfigProviderManager>

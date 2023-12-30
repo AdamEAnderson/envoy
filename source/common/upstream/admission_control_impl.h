@@ -10,14 +10,18 @@
 
 #include "source/common/common/assert.h"
 #include "source/common/config/utility.h"
+#include "source/common/protobuf/message_validator_impl.h"
 
 namespace Envoy {
 namespace Upstream {
 class AdmissionControlImpl : public AdmissionControl {
 public:
-  AdmissionControlImpl(const envoy::config::core::v3::TypedExtensionConfig& retry) {
-    auto& factory = Config::Utility::getAndCheckFactory<RetryAdmissionControllerFactory>(retry);
-    retry_ = factory.createAdmissionController(retry.typed_config());
+  AdmissionControlImpl(const envoy::config::core::v3::TypedExtensionConfig& retry_config) {
+    auto& retry_factory =
+        Config::Utility::getAndCheckFactory<RetryAdmissionControllerFactory>(retry_config);
+    auto retry_factory_config = Envoy::Config::Utility::translateToFactoryConfig(
+        retry_config, ProtobufMessage::getNullValidationVisitor(), retry_factory);
+    retry_ = retry_factory.createAdmissionController(*retry_factory_config);
   }
 
   RetryAdmissionControllerSharedPtr retry() override { return retry_; }

@@ -13,16 +13,17 @@ envoy_cc_library(
     name = "static_limits_lib",
     srcs = ["static_limits.cc"],
     hdrs = ["static_limits.h"],
-    deps = [
-        "//envoy/upstream:admission_control_interface",
-        "@envoy_api//envoy/extensions/retry/admission_control/static_limits/v3:pkg_cc_proto",
-    ],
+    deps = ["//envoy/upstream:admission_control_interface"],
 )
 
 envoy_cc_extension(
     name = "config",
     srcs = ["config.cc"],
     hdrs = ["config.h"],
+    extra_visibility = [
+        # previously considered core code.
+        "//test:__subpackages__",
+    ],
     deps = [
         ":static_limits_lib",
         "//envoy/registry",

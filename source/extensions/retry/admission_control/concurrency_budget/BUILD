@@ -22,6 +22,10 @@ envoy_cc_extension(
     name = "config",
     srcs = ["config.cc"],
     hdrs = ["config.h"],
+    extra_visibility = [
+        # previously considered core code.
+        "//test:__subpackages__",
+    ],
     deps = [
         ":concurrency_budget_lib",
         "//envoy/registry",
