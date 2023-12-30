@@ -60,7 +60,7 @@ public:
     state_ = RetryStateImpl::create(policy_, request_headers, cluster_, &virtual_cluster_,
                                     route_stats_context_, runtime_, random_, dispatcher_,
                                     test_time_.timeSystem(), Upstream::ResourcePriority::Default,
-                                    retry_admission_controller_);
+                                    retry_admission_controller_, use_retry_admission_control_);
   }
 
   void expectTimerCreateAndEnable() {
@@ -195,6 +195,7 @@ public:
       Http::StreamResetReason::RemoteRefusedStreamReset};
   const Http::StreamResetReason overflow_reset_{Http::StreamResetReason::Overflow};
   const Http::StreamResetReason connect_failure_{Http::StreamResetReason::RemoteConnectionFailure};
+  bool use_retry_admission_control_{true};
 };
 
 TEST_F(RouterRetryStateImplTest, PolicyNoneRemoteReset) {
@@ -938,6 +939,7 @@ TEST_F(RouterRetryStateImplTest, RouteConfigNoHeaderConfig) {
 }
 
 TEST_F(RouterRetryStateImplTest, NoAvailableRetries) {
+  use_retry_admission_control_ = false; // testing deprecated retry budget manager
   cluster_.resetResourceManager(0, 0, 0, 0, 0);
 
   Http::TestRequestHeaderMapImpl request_headers{{"x-envoy-retry-on", "connect-failure"}};
@@ -1391,6 +1393,8 @@ TEST_F(RouterRetryStateImplTest, BudgetAvailableRetries) {
 }
 
 TEST_F(RouterRetryStateImplTest, BudgetNoAvailableRetries) {
+  use_retry_admission_control_ = false; // testing deprecated retry budget manager
+
   // Expect no available retries from resource manager. Override the max_retries CB via a retry
   // budget that won't let any retries. As configured, there are 5 allowed retries via max_retries
   // CB.
@@ -1409,6 +1413,8 @@ TEST_F(RouterRetryStateImplTest, BudgetNoAvailableRetries) {
 }
 
 TEST_F(RouterRetryStateImplTest, BudgetVerifyMinimumConcurrency) {
+  use_retry_admission_control_ = false; // testing deprecated retry budget manager
+
   // Expect no available retries from resource manager.
   cluster_.resetResourceManagerWithRetryBudget(
       0 /* cx */, 0 /* rq_pending */, 0 /* rq */, 0 /* rq_retry */, 0 /* conn_pool */,

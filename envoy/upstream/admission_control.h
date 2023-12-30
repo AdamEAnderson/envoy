@@ -9,6 +9,8 @@
 #include "envoy/config/typed_config.h"
 #include "envoy/stream_info/stream_info.h"
 
+#include "source/common/protobuf/message_validator_impl.h"
+
 #include "absl/types/optional.h"
 
 namespace Envoy {
@@ -144,7 +146,9 @@ using RetryAdmissionControllerSharedPtr = std::shared_ptr<RetryAdmissionControll
 class RetryAdmissionControllerFactory : public Config::TypedFactory {
 public:
   virtual RetryAdmissionControllerSharedPtr
-  createAdmissionController(const Protobuf::Message& config) PURE;
+  createAdmissionController(const Protobuf::Message& config,
+                            ProtobufMessage::ValidationVisitor& validation_visitor,
+                            Runtime::Loader& runtime) PURE;
 
   std::string category() const override { return "envoy.retry_admission_control"; }
 };

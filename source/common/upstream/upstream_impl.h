@@ -1087,9 +1087,13 @@ private:
   };
 
   struct AdmissionControls {
-    AdmissionControls(const envoy::config::cluster::v3::Cluster& config);
+    AdmissionControls(const envoy::config::cluster::v3::Cluster& config,
+                      ProtobufMessage::ValidationVisitor& validation_visitor,
+                      Runtime::Loader& runtime);
     AdmissionControlImplSharedPtr load(const envoy::config::cluster::v3::Cluster& config,
-                                       const envoy::config::core::v3::RoutingPriority& priority);
+                                       const envoy::config::core::v3::RoutingPriority& priority,
+                                       ProtobufMessage::ValidationVisitor& validation_visitor,
+                                       Runtime::Loader& runtime);
 
     using Controls = std::array<AdmissionControlImplSharedPtr, NumResourcePriorities>;
 

@@ -134,6 +134,7 @@ envoy_cc_library(
         "//envoy/config:typed_config_interface",
         "//envoy/stream_info:stream_info_interface",
         "//envoy/upstream:types_interface",
+        "//source/common/protobuf:message_validator_lib",
     ],
 )
 

@@ -16,12 +16,15 @@ namespace Envoy {
 namespace Upstream {
 class AdmissionControlImpl : public AdmissionControl {
 public:
-  AdmissionControlImpl(const envoy::config::core::v3::TypedExtensionConfig& retry_config) {
+  AdmissionControlImpl(const envoy::config::core::v3::TypedExtensionConfig& retry_config,
+                       ProtobufMessage::ValidationVisitor& validation_visitor,
+                       Runtime::Loader& runtime) {
     auto& retry_factory =
         Config::Utility::getAndCheckFactory<RetryAdmissionControllerFactory>(retry_config);
     auto retry_factory_config = Envoy::Config::Utility::translateToFactoryConfig(
-        retry_config, ProtobufMessage::getNullValidationVisitor(), retry_factory);
-    retry_ = retry_factory.createAdmissionController(*retry_factory_config);
+        retry_config, validation_visitor, retry_factory);
+    retry_ =
+        retry_factory.createAdmissionController(*retry_factory_config, validation_visitor, runtime);
   }
 
   RetryAdmissionControllerSharedPtr retry() override { return retry_; }

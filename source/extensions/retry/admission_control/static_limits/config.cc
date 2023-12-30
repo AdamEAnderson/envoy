@@ -16,11 +16,12 @@ namespace AdmissionControl {
 
 REGISTER_FACTORY(StaticLimitsFactory, Upstream::RetryAdmissionControllerFactory);
 
-Upstream::RetryAdmissionControllerSharedPtr
-StaticLimitsFactory::createAdmissionController(const Protobuf::Message& config) {
+Upstream::RetryAdmissionControllerSharedPtr StaticLimitsFactory::createAdmissionController(
+    const Protobuf::Message& config, ProtobufMessage::ValidationVisitor& validation_visitor,
+    Runtime::Loader&) {
   const auto& static_limits_config = MessageUtil::downcastAndValidate<
       const envoy::extensions::retry::admission_control::static_limits::v3::StaticLimitsConfig&>(
-      config, ProtobufMessage::getNullValidationVisitor());
+      config, validation_visitor);
   return std::make_shared<StaticLimits>(static_limits_config.max_concurrent_retries());
 }
 

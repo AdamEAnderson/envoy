@@ -15,7 +15,9 @@ namespace AdmissionControl {
 class ConcurrencyBudgetFactory : public Upstream::RetryAdmissionControllerFactory {
 public:
   Upstream::RetryAdmissionControllerSharedPtr
-  createAdmissionController(const Protobuf::Message& config) override;
+  createAdmissionController(const Protobuf::Message& config,
+                            ProtobufMessage::ValidationVisitor& validation_visitor,
+                            Runtime::Loader& runtime) override;
 
   std::string name() const override { return "envoy.retry_admission_control.concurrency_budget"; }
 

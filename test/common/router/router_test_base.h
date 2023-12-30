@@ -34,7 +34,7 @@ public:
                                  RouteStatsContextOptRef, Runtime::Loader&,
                                  Random::RandomGenerator&, Event::Dispatcher&, TimeSource&,
                                  Upstream::ResourcePriority,
-                                 Upstream::RetryStreamAdmissionController&) override {
+                                 Upstream::RetryStreamAdmissionController&, const bool) override {
     EXPECT_EQ(nullptr, retry_state_);
     retry_state_ = new NiceMock<MockRetryState>();
     if (reject_all_hosts_) {

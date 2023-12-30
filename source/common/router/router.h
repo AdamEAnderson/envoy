@@ -301,7 +301,9 @@ public:
       : config_(config), stats_(stats), grpc_request_(false), exclude_http_code_stats_(false),
         downstream_response_started_(false), downstream_end_stream_(false), is_retry_(false),
         request_buffer_overflowed_(false), streaming_shadows_(Runtime::runtimeFeatureEnabled(
-                                               "envoy.reloadable_features.streaming_shadow")) {}
+                                               "envoy.reloadable_features.streaming_shadow")),
+        use_retry_admission_control_(Runtime::runtimeFeatureEnabled(
+            "envoy.reloadable_features.use_retry_admission_control")) {}
 
   ~Filter() override;
 
@@ -503,7 +505,8 @@ private:
                    RouteStatsContextOptRef route_stats_context, Runtime::Loader& runtime,
                    Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
                    TimeSource& time_source, Upstream::ResourcePriority priority,
-                   Upstream::RetryStreamAdmissionController& retry_admission_controller) PURE;
+                   Upstream::RetryStreamAdmissionController& retry_admission_controller,
+                   const bool use_retry_admission_control) PURE;
 
   std::unique_ptr<GenericConnPool>
   createConnPool(Upstream::ThreadLocalCluster& thread_local_cluster);
@@ -603,6 +606,7 @@ private:
   bool include_timeout_retry_header_in_request_ : 1;
   bool request_buffer_overflowed_ : 1;
   const bool streaming_shadows_ : 1;
+  const bool use_retry_admission_control_ : 1;
 };
 
 class ProdFilter : public Filter {
@@ -617,7 +621,8 @@ private:
                    RouteStatsContextOptRef route_stats_context, Runtime::Loader& runtime,
                    Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
                    TimeSource& time_source, Upstream::ResourcePriority priority,
-                   Upstream::RetryStreamAdmissionController& retry_admission_controller) override;
+                   Upstream::RetryStreamAdmissionController& retry_admission_controller,
+                   const bool use_retry_admission_control) override;
 };
 
 } // namespace Router

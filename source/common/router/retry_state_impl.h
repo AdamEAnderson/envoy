@@ -32,7 +32,8 @@ public:
          RouteStatsContextOptRef route_stats_context, Runtime::Loader& runtime,
          Random::RandomGenerator& random, Event::Dispatcher& dispatcher, TimeSource& time_source,
          Upstream::ResourcePriority priority,
-         Upstream::RetryStreamAdmissionController& retry_admission_controller);
+         Upstream::RetryStreamAdmissionController& retry_admission_controller,
+         const bool use_retry_admission_control);
   ~RetryStateImpl() override;
 
   /**
@@ -105,7 +106,8 @@ private:
                  Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
                  TimeSource& time_source, Upstream::ResourcePriority priority,
                  bool auto_configured_for_http3,
-                 Upstream::RetryStreamAdmissionController& retry_admission_controller);
+                 Upstream::RetryStreamAdmissionController& retry_admission_controller,
+                 const bool use_retry_admission_control);
 
   void enableBackoffTimer();
   void resetRetry();
@@ -144,6 +146,7 @@ private:
   uint32_t retries_remaining_{};
   uint32_t host_selection_max_attempts_;
   Upstream::ResourcePriority priority_;
+  const bool use_retry_admission_control_ : 1;
   const bool auto_configured_for_http3_{};
 };
 

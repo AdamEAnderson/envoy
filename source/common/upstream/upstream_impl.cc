@@ -1047,7 +1047,7 @@ ClusterInfoImpl::ClusterInfoImpl(
           config, *http_protocol_options_)),
       resource_managers_(config, runtime, name_, *stats_scope_,
                          factory_context.clusterManager().clusterCircuitBreakersStatNames()),
-      admission_controls_(config),
+      admission_controls_(config, server_context.messageValidationVisitor(), runtime),
       maintenance_mode_runtime_key_(absl::StrCat("upstream.maintenance_mode.", name_)),
       upstream_local_address_selector_(createUpstreamLocalAddressSelector(config, bind_config)),
       lb_policy_config_(std::make_unique<const LBPolicyConfig>(config)),
@@ -1798,9 +1798,12 @@ ClusterInfoImpl::ResourceManagers::ResourceManagers(
 }
 
 ClusterInfoImpl::AdmissionControls::AdmissionControls(
-    const envoy::config::cluster::v3::Cluster& config) {
-  controls_[enumToInt(ResourcePriority::Default)] = load(config, envoy::config::core::v3::DEFAULT);
-  controls_[enumToInt(ResourcePriority::High)] = load(config, envoy::config::core::v3::HIGH);
+    const envoy::config::cluster::v3::Cluster& config,
+    ProtobufMessage::ValidationVisitor& validation_visitor, Runtime::Loader& runtime) {
+  controls_[enumToInt(ResourcePriority::Default)] =
+      load(config, envoy::config::core::v3::DEFAULT, validation_visitor, runtime);
+  controls_[enumToInt(ResourcePriority::High)] =
+      load(config, envoy::config::core::v3::HIGH, validation_visitor, runtime);
 }
 
 ClusterCircuitBreakersStats
@@ -1977,7 +1980,9 @@ ClusterInfoImpl::ResourceManagers::load(const envoy::config::cluster::v3::Cluste
 
 AdmissionControlImplSharedPtr
 ClusterInfoImpl::AdmissionControls::load(const envoy::config::cluster::v3::Cluster& config,
-                                         const envoy::config::core::v3::RoutingPriority& priority) {
+                                         const envoy::config::core::v3::RoutingPriority& priority,
+                                         ProtobufMessage::ValidationVisitor& validation_visitor,
+                                         Runtime::Loader& runtime) {
   const auto& thresholds = config.circuit_breakers().thresholds();
   const auto it = std::find_if(
       thresholds.cbegin(), thresholds.cend(),
@@ -1993,7 +1998,8 @@ ClusterInfoImpl::AdmissionControls::load(const envoy::config::cluster::v3::Clust
   envoy::config::core::v3::TypedExtensionConfig retry_admission_control =
       ClusterInfoImpl::getRetryAdmissionControlConfig(pri_thresholds);
 
-  return std::make_shared<AdmissionControlImpl>(retry_admission_control);
+  return std::make_shared<AdmissionControlImpl>(retry_admission_control, validation_visitor,
+                                                runtime);
 }
 
 envoy::config::core::v3::TypedExtensionConfig ClusterInfoImpl::getRetryAdmissionControlConfig(
