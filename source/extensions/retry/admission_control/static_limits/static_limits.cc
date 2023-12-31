@@ -60,7 +60,8 @@ uint64_t StaticLimits::StreamAdmissionController::getMaxActiveRetries() const {
   return runtime_.snapshot().getInteger(max_active_retries_key_, max_active_retries_);
 }
 
-void StaticLimits::StreamAdmissionController::setStats(uint64_t active_retries, uint64_t max_active_retries) {
+void StaticLimits::StreamAdmissionController::setStats(uint64_t active_retries,
+                                                       uint64_t max_active_retries) {
   if (!Runtime::runtimeFeatureEnabled("envoy.reloadable_features.use_retry_admission_control")) {
     return;
   }

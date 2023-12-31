@@ -5,6 +5,7 @@
 #include <string>
 
 #include "envoy/upstream/admission_control.h"
+
 #include "source/common/runtime/runtime_features.h"
 
 namespace Envoy {
@@ -17,11 +18,13 @@ public:
   StaticLimits(uint64_t max_concurrent_retries, Runtime::Loader& runtime,
                std::string max_active_retries_key, Upstream::ClusterCircuitBreakersStats cb_stats)
       : cb_stats_(cb_stats), runtime_(runtime), max_active_retries_(max_concurrent_retries),
-        max_active_retries_key_(max_active_retries_key){
+        max_active_retries_key_(max_active_retries_key) {
     if (!Runtime::runtimeFeatureEnabled("envoy.reloadable_features.use_retry_admission_control")) {
       return;
     }
-    uint64_t max_active_retries = runtime_.snapshot().getInteger(max_active_retries_key_, max_active_retries_);;
+    uint64_t max_active_retries =
+        runtime_.snapshot().getInteger(max_active_retries_key_, max_active_retries_);
+    ;
     cb_stats_.remaining_retries_.set(max_concurrent_retries);
     cb_stats_.rq_retry_open_.set(max_active_retries > 0 ? 0 : 1);
   };
