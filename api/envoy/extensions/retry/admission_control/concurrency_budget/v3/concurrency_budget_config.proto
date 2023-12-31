@@ -4,6 +4,8 @@ package envoy.extensions.retry.admission_control.concurrency_budget.v3;
 
 import "envoy/type/v3/percent.proto";
 
+import "google/protobuf/wrappers.proto";
+
 import "udpa/annotations/status.proto";
 
 option java_package = "io.envoyproxy.envoy.extensions.retry.admission_control.concurrency_budget.v3";
@@ -35,7 +37,7 @@ message ConcurrencyBudgetConfig {
   // This is important to prevent the concurrency limit from being set too low due to low traffic on the cluster.
   //
   // This field is optional, and defaults to 3.
-  uint64 min_concurrent_retry_limit = 1;
+  google.protobuf.UInt64Value min_concurrent_retry_limit = 1;
 
   // The retry budget percent.
   // The concurrency limit is calculated as the budget percentage multiplied by the total

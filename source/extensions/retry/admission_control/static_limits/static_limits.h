@@ -24,7 +24,6 @@ public:
     }
     uint64_t max_active_retries =
         runtime_.snapshot().getInteger(max_active_retries_key_, max_active_retries_);
-    ;
     cb_stats_.remaining_retries_.set(max_concurrent_retries);
     cb_stats_.rq_retry_open_.set(max_active_retries > 0 ? 0 : 1);
   };

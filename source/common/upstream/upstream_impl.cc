@@ -2038,7 +2038,7 @@ envoy::config::core::v3::TypedExtensionConfig ClusterInfoImpl::getRetryAdmission
       budget_percent = thresholds->retry_budget().budget_percent().value();
     }
     concurrency_budget.mutable_budget_percent()->set_value(budget_percent);
-    concurrency_budget.set_min_concurrent_retry_limit(
+    concurrency_budget.mutable_min_concurrent_retry_limit()->set_value(
         PROTOBUF_GET_WRAPPED_OR_DEFAULT(thresholds->retry_budget(), min_retry_concurrency, 3));
     retry_admission_control.mutable_typed_config()->PackFrom(concurrency_budget);
     return retry_admission_control;

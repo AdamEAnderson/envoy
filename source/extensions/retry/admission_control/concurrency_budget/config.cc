@@ -22,9 +22,17 @@ Upstream::RetryAdmissionControllerSharedPtr ConcurrencyBudgetFactory::createAdmi
           config, validation_visitor);
   std::string retry_budget_key = runtime_key_prefix + "retry_budget.";
   std::string budget_percent_key = retry_budget_key + "budget_percent";
-  std::string min_retry_concurrency_limit_key = retry_budget_key + "min_retry_concurrency_limit";
-  return std::make_shared<ConcurrencyBudget>(concurrency_budget_config.min_concurrent_retry_limit(),
-                                             concurrency_budget_config.budget_percent().value(),
+  std::string min_retry_concurrency_limit_key = retry_budget_key + "min_retry_concurrency";
+  uint64_t min_concurrent_retry_limit = 3UL; // default
+  if (concurrency_budget_config.has_min_concurrent_retry_limit()) {
+    min_concurrent_retry_limit = concurrency_budget_config.min_concurrent_retry_limit().value();
+  }
+  double budget_percent = 20.0; // default
+  if (concurrency_budget_config.has_budget_percent()) {
+    budget_percent = concurrency_budget_config.budget_percent().value();
+  }
+  return std::make_shared<ConcurrencyBudget>(min_concurrent_retry_limit,
+                                             budget_percent,
                                              runtime, budget_percent_key,
                                              min_retry_concurrency_limit_key, cb_stats);
 }

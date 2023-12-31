@@ -10,6 +10,7 @@ namespace Retry {
 namespace AdmissionControl {
 
 void ConcurrencyBudget::StreamAdmissionController::onTryStarted(uint64_t attempt_number) {
+  // std::cout << "ConcurrencyBudget::StreamAdmissionController::onTryStarted" << std::endl;
   if (stream_active_retry_attempt_numbers_.find(attempt_number) !=
       stream_active_retry_attempt_numbers_.end()) {
     // if this is a retry, we've already counted it as active when it was initially scheduled
@@ -54,7 +55,6 @@ bool ConcurrencyBudget::StreamAdmissionController::isRetryAdmitted(uint64_t prev
     active_retry_diff_on_retry = 0;
   }
   if (active_retries_->value() + active_retry_diff_on_retry > getRetryConcurrencyLimit()) {
-    setStats();
     return false;
   }
   active_retries_->add(active_retry_diff_on_retry);
@@ -75,6 +75,11 @@ uint64_t ConcurrencyBudget::StreamAdmissionController::getRetryConcurrencyLimit(
   const uint64_t min_retry_concurrency_limit = runtime_.snapshot().getInteger(
       min_retry_concurrency_limit_key_, min_retry_concurrency_limit_);
   uint64_t retry_concurrency_limit = active_tries_->value() * budget_percent / 100.0;
+  // std::cout << "ConcurrencyBudget::StreamAdmissionController::getRetryConcurrencyLimit: "
+  //           << "budget_percent: " << budget_percent << ", "
+  //           << "active_tries: " << active_tries_->value() << ", "
+  //           << "retry_concurrency_limit: " << retry_concurrency_limit << ", "
+  //           << "min_retry_concurrency_limit: " << min_retry_concurrency_limit << std::endl;
   retry_concurrency_limit = std::max(retry_concurrency_limit, min_retry_concurrency_limit);
   return retry_concurrency_limit;
 }

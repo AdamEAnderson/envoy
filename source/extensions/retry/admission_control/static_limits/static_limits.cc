@@ -44,7 +44,6 @@ bool StaticLimits::StreamAdmissionController::isRetryAdmitted(uint64_t prev_atte
   uint64_t max_active_retries = getMaxActiveRetries();
   uint64_t active_retries = active_retries_->value();
   if (active_retries + active_retry_diff_on_retry > max_active_retries) {
-    setStats(active_retries, max_active_retries);
     return false;
   }
   active_retries_->add(active_retry_diff_on_retry);

@@ -36,7 +36,7 @@ public:
     EXPECT_NE(nullptr, factory);
     StaticLimitsFactory* static_limits_factory = dynamic_cast<StaticLimitsFactory*>(factory);
     factory_ = std::make_unique<StaticLimitsFactory>(*static_limits_factory);
-    ON_CALL(runtime_.snapshot_, getInteger("test_prefix.max_retries", 3U))
+    ON_CALL(runtime_.snapshot_, getInteger("test_prefix.max_retries", _))
         .WillByDefault([](std::basic_string_view<char>, uint64_t default_value) -> uint64_t {
           return default_value;
         });

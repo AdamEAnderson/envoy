@@ -15,6 +15,7 @@ envoy_cc_library(
     hdrs = ["concurrency_budget.h"],
     deps = [
         "//envoy/upstream:admission_control_interface",
+        "//source/common/runtime:runtime_features_lib",
     ],
 )
 
