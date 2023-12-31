@@ -54,6 +54,7 @@
 #include "test/mocks/upstream/typed_load_balancer_factory.h"
 #include "test/test_common/environment.h"
 #include "test/test_common/registry.h"
+#include "test/test_common/test_runtime.h"
 #include "test/test_common/utility.h"
 
 #include "gmock/gmock.h"
@@ -3915,54 +3916,54 @@ TEST_F(ClusterInfoImplTest, RetryAdmissionControl) {
       RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(absl::nullopt);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.static_limits");
   extConfig.typed_config().UnpackTo(&static_limits_config);
-  EXPECT_EQ(static_limits_config.max_concurrent_retries(), 3UL);
+  EXPECT_EQ(static_limits_config.max_concurrent_retries().value(), 3UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[0]);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.static_limits");
   extConfig.typed_config().UnpackTo(&static_limits_config);
-  EXPECT_EQ(static_limits_config.max_concurrent_retries(), 3UL);
+  EXPECT_EQ(static_limits_config.max_concurrent_retries().value(), 3UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[1]);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.static_limits");
   extConfig.typed_config().UnpackTo(&static_limits_config);
-  EXPECT_EQ(static_limits_config.max_concurrent_retries(), 123UL);
+  EXPECT_EQ(static_limits_config.max_concurrent_retries().value(), 123UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[2]);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.concurrency_budget");
   extConfig.typed_config().UnpackTo(&concurrency_budget_config);
   EXPECT_EQ(concurrency_budget_config.budget_percent().value(), 20.0);
-  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit(), 3UL);
+  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit().value(), 3UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[3]);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.concurrency_budget");
   extConfig.typed_config().UnpackTo(&concurrency_budget_config);
   EXPECT_EQ(concurrency_budget_config.budget_percent().value(), 20.0);
-  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit(), 3UL);
+  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit().value(), 3UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[4]);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.concurrency_budget");
   extConfig.typed_config().UnpackTo(&concurrency_budget_config);
   EXPECT_EQ(concurrency_budget_config.budget_percent().value(), 42.0);
-  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit(), 3UL);
+  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit().value(), 3UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[5]);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.concurrency_budget");
   extConfig.typed_config().UnpackTo(&concurrency_budget_config);
   EXPECT_EQ(concurrency_budget_config.budget_percent().value(), 20.0);
-  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit(), 123UL);
+  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit().value(), 123UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[6]);
   EXPECT_EQ(extConfig.name(), "envoy.retry_admission_control.concurrency_budget");
   extConfig.typed_config().UnpackTo(&concurrency_budget_config);
   EXPECT_EQ(concurrency_budget_config.budget_percent().value(), 42.0);
-  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit(), 123UL);
+  EXPECT_EQ(concurrency_budget_config.min_concurrent_retry_limit().value(), 123UL);
 
   extConfig = RetryAdmissionControlTestClusterInfo::getRetryAdmissionControlConfig(
       cluster_config_.circuit_breakers().thresholds()[7]);
@@ -4188,6 +4189,10 @@ TEST_F(ClusterInfoImplTest, TestTrackRequestResponseSizes) {
 }
 
 TEST_F(ClusterInfoImplTest, TestTrackRemainingResourcesGauges) {
+  // needed for the resource manager to emit stats for retries
+  TestScopedRuntime scoped_runtime;
+  scoped_runtime.mergeValues({{"envoy.reloadable_features.use_retry_admission_control", "false"}});
+
   const std::string yaml = R"EOF(
     name: name
     connect_timeout: 0.25s

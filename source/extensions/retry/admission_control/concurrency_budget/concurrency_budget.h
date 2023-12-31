@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "envoy/upstream/admission_control.h"
+
 #include "source/common/runtime/runtime_features.h"
 
 namespace Envoy {
@@ -19,16 +20,15 @@ public:
                     Upstream::ClusterCircuitBreakersStats cb_stats)
       : cb_stats_(cb_stats), runtime_(runtime), budget_percent_key_(budget_percent_key),
         min_retry_concurrency_limit_key_(min_retry_concurrency_limit_key),
-        min_retry_concurrency_limit_(min_retry_concurrency_limit),
-        budget_percent_(budget_percent) {
-      if (!Runtime::runtimeFeatureEnabled("envoy.reloadable_features.use_retry_admission_control")) {
-        return;
-      }
-      uint64_t retries_remaining =
-          runtime_.snapshot().getInteger(min_retry_concurrency_limit_key_, min_retry_concurrency_limit_);
-      cb_stats_.remaining_retries_.set(retries_remaining);
-      cb_stats_.rq_retry_open_.set(retries_remaining > 0 ? 0 : 1);
-    };
+        min_retry_concurrency_limit_(min_retry_concurrency_limit), budget_percent_(budget_percent) {
+    if (!Runtime::runtimeFeatureEnabled("envoy.reloadable_features.use_retry_admission_control")) {
+      return;
+    }
+    uint64_t retries_remaining = runtime_.snapshot().getInteger(min_retry_concurrency_limit_key_,
+                                                                min_retry_concurrency_limit_);
+    cb_stats_.remaining_retries_.set(retries_remaining);
+    cb_stats_.rq_retry_open_.set(retries_remaining > 0 ? 0 : 1);
+  };
   ~ConcurrencyBudget() override = default;
 
   Upstream::RetryStreamAdmissionControllerPtr

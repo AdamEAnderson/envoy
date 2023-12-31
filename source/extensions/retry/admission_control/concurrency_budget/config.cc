@@ -31,10 +31,9 @@ Upstream::RetryAdmissionControllerSharedPtr ConcurrencyBudgetFactory::createAdmi
   if (concurrency_budget_config.has_budget_percent()) {
     budget_percent = concurrency_budget_config.budget_percent().value();
   }
-  return std::make_shared<ConcurrencyBudget>(min_concurrent_retry_limit,
-                                             budget_percent,
-                                             runtime, budget_percent_key,
-                                             min_retry_concurrency_limit_key, cb_stats);
+  return std::make_shared<ConcurrencyBudget>(min_concurrent_retry_limit, budget_percent, runtime,
+                                             budget_percent_key, min_retry_concurrency_limit_key,
+                                             cb_stats);
 }
 
 } // namespace AdmissionControl

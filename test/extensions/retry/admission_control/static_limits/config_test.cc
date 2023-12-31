@@ -69,13 +69,13 @@ TEST_F(StaticLimitsConfigTest, FactoryDefault) {
 
   // by default, 3 retries are allowed
   retry_stream_admission_controller_->onTryStarted(1);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, true));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, true)); // 1R
   retry_stream_admission_controller_->onTryStarted(2);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false)); // 2R
   retry_stream_admission_controller_->onTryStarted(3);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(3, 4, false));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(3, 4, false)); // 3R
   retry_stream_admission_controller_->onTryStarted(4);
-  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(4, 5, false));
+  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(4, 5, false)); // 3R, 4th denied
 }
 
 TEST_F(StaticLimitsConfigTest, MultipleStreams) {
@@ -86,32 +86,32 @@ TEST_F(StaticLimitsConfigTest, MultipleStreams) {
 
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 3);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
-  stream1->onTryStarted(1);                          // s1: 1
-  ASSERT_TRUE(stream1->isRetryAdmitted(1, 2, true)); // s1: 2
+  stream1->onTryStarted(1);                          // 0R
+  ASSERT_TRUE(stream1->isRetryAdmitted(1, 2, true)); // 1R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 2);
-  stream2->onTryStarted(1);                          // s2: 1
-  ASSERT_TRUE(stream2->isRetryAdmitted(1, 2, true)); // s2: 2
+  stream2->onTryStarted(1);                          // 1R
+  ASSERT_TRUE(stream2->isRetryAdmitted(1, 2, true)); // 2R
   stream2->onTryStarted(2);
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 1);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
   stream1->onTryStarted(2);
-  ASSERT_TRUE(stream1->isRetryAdmitted(2, 3, false)); // s1: 3
+  ASSERT_TRUE(stream1->isRetryAdmitted(2, 3, false)); // 3R
   stream1->onTryStarted(3);
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 0);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 1);
-  ASSERT_TRUE(stream2->isRetryAdmitted(2, 3, true)); // s2: 3, abort s2: 2
+  ASSERT_TRUE(stream2->isRetryAdmitted(2, 3, true)); // 3R (stream 2, attempt 2 aborted)
   stream2->onTryStarted(3);
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 0);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 1);
-  stream2->onTryAborted(1); // abort s2: 1
+  stream2->onTryAborted(1); // still 3R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 0);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 1);
-  stream2->onTryAborted(3); // abort s2: 3
+  stream2->onTryAborted(3); // 2R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 1);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
-  stream2.reset(); // no effect
+  stream2.reset(); // still 2R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 1);
-  stream1.reset(); // abort s1: 1, s1: 2, s1: 3
+  stream1.reset(); // 0R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 3);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
 }
@@ -124,19 +124,20 @@ TEST_F(StaticLimitsConfigTest, FactoryRuntimeOverrides) {
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
   retry_stream_admission_controller_ =
       admission_controller_->createStreamAdmissionController(request_stream_info_);
+
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 3);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
   retry_stream_admission_controller_->onTryStarted(1);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, true));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, true)); // 1R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 2);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
 
   // can be overridden by runtime
   EXPECT_CALL(runtime_.snapshot_, getInteger("test_prefix.max_retries", 3U))
-      .Times(2)
       .WillRepeatedly(Return(1U));
   retry_stream_admission_controller_->onTryStarted(2);
-  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false));
+  ASSERT_FALSE(
+      retry_stream_admission_controller_->isRetryAdmitted(2, 3, false)); // 1R still, 2R denied
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 0);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 1);
   retry_stream_admission_controller_.reset();
@@ -153,7 +154,7 @@ TEST_F(StaticLimitsConfigTest, StatsGuardedByRuntimeFeature) {
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 3);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
   retry_stream_admission_controller_->onTryStarted(1);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, true));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, true)); // 1R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 2);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
 
@@ -163,36 +164,35 @@ TEST_F(StaticLimitsConfigTest, StatsGuardedByRuntimeFeature) {
   cb_stats_.rq_retry_open_.set(42);
 
   retry_stream_admission_controller_->onTryStarted(2);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false)); // 2R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 42);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 42);
   retry_stream_admission_controller_->onTryStarted(3);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(3, 4, false));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(3, 4, false)); // 3R
   retry_stream_admission_controller_->onTryStarted(4);
-  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(4, 5, false));
+  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(4, 5, false)); // 3R, 4th denied
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 42);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 42);
-  retry_stream_admission_controller_.reset();
+  retry_stream_admission_controller_.reset(); // 0R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 42);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 42);
 
   retry_stream_admission_controller_ =
       admission_controller_->createStreamAdmissionController(request_stream_info_);
   retry_stream_admission_controller_->onTryStarted(1);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, false));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, false)); // 1R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 42);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 42);
 
   scoped_runtime_.mergeValues({{"envoy.reloadable_features.use_retry_admission_control", "true"}});
 
   retry_stream_admission_controller_->onTryStarted(2);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false)); // 2R
   ASSERT_EQ(cb_stats_.remaining_retries_.value(), 1);
   ASSERT_EQ(cb_stats_.rq_retry_open_.value(), 0);
 }
 
 TEST_F(StaticLimitsConfigTest, FactoryConfigured) {
-  EXPECT_NE(nullptr, factory_);
   config_.mutable_max_concurrent_retries()->set_value(1);
   createAdmissionController();
 
@@ -201,9 +201,26 @@ TEST_F(StaticLimitsConfigTest, FactoryConfigured) {
 
   // only 1 retry allowed
   retry_stream_admission_controller_->onTryStarted(1);
-  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, false));
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, false)); // 1R
   retry_stream_admission_controller_->onTryStarted(2);
-  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false));
+  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(2, 3, false)); // 1R, 2nd denied
+}
+
+TEST_F(StaticLimitsConfigTest, AbortPreviousOnRetry) {
+  config_.mutable_max_concurrent_retries()->set_value(1);
+  createAdmissionController();
+
+  retry_stream_admission_controller_ =
+      admission_controller_->createStreamAdmissionController(request_stream_info_);
+
+  // only 1 retry allowed
+  retry_stream_admission_controller_->onTryStarted(1);
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(1, 2, false)); // 1R
+  retry_stream_admission_controller_->onTryStarted(2);
+  ASSERT_TRUE(retry_stream_admission_controller_->isRetryAdmitted(
+      2, 3, true)); // still 1R, attempt 2 aborted
+  retry_stream_admission_controller_->onTryStarted(3);
+  ASSERT_FALSE(retry_stream_admission_controller_->isRetryAdmitted(3, 4, false)); // 1R, 2nd denied
 }
 
 TEST_F(StaticLimitsConfigTest, EmptyConfig) {

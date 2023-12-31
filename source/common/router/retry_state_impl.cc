@@ -327,6 +327,13 @@ RetryStatus RetryStateImpl::shouldRetry(RetryDecision would_retry, DoRetryCallba
   if (use_retry_admission_control_ &&
       !retry_admission_controller_.isRetryAdmitted(attempt_number_, attempt_number_ + 1,
                                                    abort_previous_on_retry)) {
+    cluster_.trafficStats()->upstream_rq_retry_overflow_.inc();
+    if (vcluster_) {
+      vcluster_->stats().upstream_rq_retry_overflow_.inc();
+    }
+    if (route_stats_context_.has_value()) {
+      route_stats_context_->stats().upstream_rq_retry_overflow_.inc();
+    }
     return RetryStatus::NoOverflow;
   }
   attempt_number_++;

@@ -940,7 +940,11 @@ TEST_F(RouterRetryStateImplTest, RouteConfigNoHeaderConfig) {
 
 TEST_F(RouterRetryStateImplTest, NoAvailableRetries) {
   use_retry_admission_control_ = false; // testing deprecated retry budget manager
+  // needed for the resource manager to emit stats
+  TestScopedRuntime scoped_runtime;
+  scoped_runtime.mergeValues({{"envoy.reloadable_features.use_retry_admission_control", "false"}});
   cluster_.resetResourceManager(0, 0, 0, 0, 0);
+  EXPECT_EQ(1UL, cluster_.circuit_breakers_stats_.rq_retry_open_.value());
 
   Http::TestRequestHeaderMapImpl request_headers{{"x-envoy-retry-on", "connect-failure"}};
   setup(request_headers);
@@ -984,7 +988,6 @@ TEST_F(RouterRetryStateImplTest, MaxRetriesHeader) {
   EXPECT_CALL(callback_ready_, ready());
   retry_timer_->invokeCallback();
 
-  EXPECT_EQ(1UL, cluster_.circuit_breakers_stats_.rq_retry_open_.value());
   EXPECT_EQ(
       RetryStatus::NoRetryLimitExceeded,
       state_->shouldRetryReset(connect_failure_, RetryState::Http3Used::Unknown, reset_callback_));
@@ -1375,6 +1378,8 @@ TEST_F(RouterRetryStateImplTest, NoPreferredOverLimitExceeded) {
 }
 
 TEST_F(RouterRetryStateImplTest, BudgetAvailableRetries) {
+  use_retry_admission_control_ = false; // testing deprecated retry budget manager
+
   // Expect no available retries from resource manager and override the max_retries CB via retry
   // budget. As configured, there are no allowed retries via max_retries CB.
   cluster_.resetResourceManagerWithRetryBudget(
@@ -1467,6 +1472,8 @@ TEST_F(RouterRetryStateImplTest, BudgetVerifyMinimumConcurrency) {
 }
 
 TEST_F(RouterRetryStateImplTest, BudgetRuntimeSetOnly) {
+  use_retry_admission_control_ = false; // testing deprecated retry budget manager
+
   // Expect no available retries from resource manager, so no retries allowed according to
   // max_retries CB. Don't configure retry budgets. We'll rely on runtime config only.
   cluster_.resetResourceManager(0 /* cx */, 0 /* rq_pending */, 0 /* rq */, 0 /* rq_retry */,
@@ -1614,6 +1621,16 @@ TEST_F(RouterRetryStateImplTest, RetryAdmissionControlDenied) {
   EXPECT_CALL(retry_admission_controller_, isRetryAdmitted(1, 2, true)).WillOnce(Return(false));
   EXPECT_EQ(RetryStatus::NoOverflow,
             state_->shouldRetryHeaders(response_headers, request_headers, header_callback_));
+
+  EXPECT_EQ(0UL, cluster_.trafficStats()->upstream_rq_retry_.value());
+  EXPECT_EQ(0UL, cluster_.trafficStats()->upstream_rq_retry_success_.value());
+  EXPECT_EQ(1UL, cluster_.trafficStats()->upstream_rq_retry_overflow_.value());
+  EXPECT_EQ(0UL, virtual_cluster_.stats().upstream_rq_retry_.value());
+  EXPECT_EQ(0UL, virtual_cluster_.stats().upstream_rq_retry_success_.value());
+  EXPECT_EQ(1UL, virtual_cluster_.stats().upstream_rq_retry_overflow_.value());
+  EXPECT_EQ(0UL, route_stats_context_.stats().upstream_rq_retry_.value());
+  EXPECT_EQ(0UL, route_stats_context_.stats().upstream_rq_retry_success_.value());
+  EXPECT_EQ(1UL, route_stats_context_.stats().upstream_rq_retry_overflow_.value());
 }
 
 TEST_F(RouterRetryStateImplTest, RetryAdmissionControlHedgedTimeout) {
