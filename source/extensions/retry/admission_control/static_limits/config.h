@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "envoy/extensions/retry/admission_control/static_limits/v3/static_limits_config.pb.validate.h"
+#include "envoy/extensions/retry/admission_control/static_limits/v3/static_limits_config.pb.h"
 #include "envoy/upstream/admission_control.h"
 
 #include "static_limits.h"

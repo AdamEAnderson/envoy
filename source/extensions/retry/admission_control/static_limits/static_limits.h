@@ -5,6 +5,7 @@
 #include <string>
 
 #include "envoy/upstream/admission_control.h"
+#include "source/common/runtime/runtime_features.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -16,7 +17,14 @@ public:
   StaticLimits(uint64_t max_concurrent_retries, Runtime::Loader& runtime,
                std::string max_active_retries_key, Upstream::ClusterCircuitBreakersStats cb_stats)
       : cb_stats_(cb_stats), runtime_(runtime), max_active_retries_(max_concurrent_retries),
-        max_active_retries_key_(max_active_retries_key){};
+        max_active_retries_key_(max_active_retries_key){
+    if (!Runtime::runtimeFeatureEnabled("envoy.reloadable_features.use_retry_admission_control")) {
+      return;
+    }
+    uint64_t max_active_retries = runtime_.snapshot().getInteger(max_active_retries_key_, max_active_retries_);;
+    cb_stats_.remaining_retries_.set(max_concurrent_retries);
+    cb_stats_.rq_retry_open_.set(max_active_retries > 0 ? 0 : 1);
+  };
 
   Upstream::RetryStreamAdmissionControllerPtr
   createStreamAdmissionController(const StreamInfo::StreamInfo&) override {
@@ -26,7 +34,6 @@ public:
 
 private:
   using PrimitiveGaugeSharedPtr = std::shared_ptr<Stats::PrimitiveGauge>;
-
   class StreamAdmissionController : public Upstream::RetryStreamAdmissionController {
   public:
     StreamAdmissionController(PrimitiveGaugeSharedPtr active_retries,
@@ -37,9 +44,7 @@ private:
           max_active_retries_(max_active_retries),
           max_active_retries_key_(max_active_retries_key){};
 
-    ~StreamAdmissionController() override {
-      active_retries_->sub(stream_active_retry_attempt_numbers_.size());
-    };
+    ~StreamAdmissionController() override;
 
     void onTryStarted(uint64_t) override {}
     void onTrySucceeded(uint64_t attempt_number) override;
@@ -50,7 +55,7 @@ private:
 
   private:
     uint64_t getMaxActiveRetries() const;
-    void setStats();
+    void setStats(uint64_t active_retries, uint64_t max_retries);
 
     Upstream::ClusterCircuitBreakersStats cb_stats_;
     Runtime::Loader& runtime_;
@@ -62,7 +67,7 @@ private:
 
   Upstream::ClusterCircuitBreakersStats cb_stats_;
   Runtime::Loader& runtime_;
-  PrimitiveGaugeSharedPtr active_retries_{};
+  PrimitiveGaugeSharedPtr active_retries_{std::make_shared<Stats::PrimitiveGauge>()};
   const uint64_t max_active_retries_;
   const std::string max_active_retries_key_;
 };

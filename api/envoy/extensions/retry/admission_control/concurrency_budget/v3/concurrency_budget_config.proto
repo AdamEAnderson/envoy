@@ -3,9 +3,8 @@ syntax = "proto3";
 package envoy.extensions.retry.admission_control.concurrency_budget.v3;
 
 import "envoy/type/v3/percent.proto";
+
 import "udpa/annotations/status.proto";
-import "udpa/annotations/versioning.proto";
-import "validate/validate.proto";
 
 option java_package = "io.envoyproxy.envoy.extensions.retry.admission_control.concurrency_budget.v3";
 option java_outer_classname = "ConcurrencyBudgetConfigProto";
@@ -28,7 +27,6 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
 // Tries meanwhile include both the initial try, and all retries. The initial try is counted as
 // active as soon as it is dispatched, and remains active until the upstream stream is ended.
 //
-// [#next-free-field: 3]
 // [#extension: envoy.retry_admission_control.concurrency_budget]
 message ConcurrencyBudgetConfig {
   // The minimum retry concurrency limit.

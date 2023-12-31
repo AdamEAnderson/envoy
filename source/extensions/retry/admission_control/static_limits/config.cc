@@ -24,8 +24,8 @@ Upstream::RetryAdmissionControllerSharedPtr StaticLimitsFactory::createAdmission
       const envoy::extensions::retry::admission_control::static_limits::v3::StaticLimitsConfig&>(
       config, validation_visitor);
   std::string max_active_retries_key = runtime_key_prefix + "max_retries";
-  return std::make_shared<StaticLimits>(static_limits_config.max_concurrent_retries(), runtime,
-                                        max_active_retries_key, cb_stats);
+  uint64_t max_concurrent_retries = static_limits_config.has_max_concurrent_retries() ? static_limits_config.max_concurrent_retries().value() : 3UL /* default */;
+  return std::make_shared<StaticLimits>(max_concurrent_retries, runtime, max_active_retries_key, cb_stats);
 }
 
 } // namespace AdmissionControl

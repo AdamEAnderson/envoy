@@ -13,7 +13,10 @@ envoy_cc_library(
     name = "static_limits_lib",
     srcs = ["static_limits.cc"],
     hdrs = ["static_limits.h"],
-    deps = ["//envoy/upstream:admission_control_interface"],
+    deps = [
+        "//envoy/upstream:admission_control_interface",
+        "//source/common/runtime:runtime_features_lib",
+    ],
 )
 
 envoy_cc_extension(

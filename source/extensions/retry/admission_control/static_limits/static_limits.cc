@@ -9,12 +9,17 @@ namespace Extensions {
 namespace Retry {
 namespace AdmissionControl {
 
+StaticLimits::StreamAdmissionController::~StreamAdmissionController() {
+  active_retries_->sub(stream_active_retry_attempt_numbers_.size());
+  setStats(active_retries_->value(), getMaxActiveRetries());
+};
+
 void StaticLimits::StreamAdmissionController::onTrySucceeded(uint64_t attempt_number) {
   if (stream_active_retry_attempt_numbers_.erase(attempt_number)) {
     // once a retry reaches the "success" phase, it is no longer considered an active retry
     active_retries_->dec();
     cb_stats_.remaining_retries_.inc();
-    setStats();
+    setStats(active_retries_->value(), getMaxActiveRetries());
   }
 }
 
@@ -22,7 +27,7 @@ void StaticLimits::StreamAdmissionController::onTryAborted(uint64_t attempt_numb
   if (stream_active_retry_attempt_numbers_.erase(attempt_number)) {
     active_retries_->dec();
     cb_stats_.remaining_retries_.inc();
-    setStats();
+    setStats(active_retries_->value(), getMaxActiveRetries());
   }
 }
 
@@ -36,8 +41,10 @@ bool StaticLimits::StreamAdmissionController::isRetryAdmitted(uint64_t prev_atte
     // so the total number of active retries will not change
     active_retry_diff_on_retry = 0;
   }
-  if (active_retries_->value() + active_retry_diff_on_retry > getMaxActiveRetries()) {
-    setStats();
+  uint64_t max_active_retries = getMaxActiveRetries();
+  uint64_t active_retries = active_retries_->value();
+  if (active_retries + active_retry_diff_on_retry > max_active_retries) {
+    setStats(active_retries, max_active_retries);
     return false;
   }
   active_retries_->add(active_retry_diff_on_retry);
@@ -45,7 +52,7 @@ bool StaticLimits::StreamAdmissionController::isRetryAdmitted(uint64_t prev_atte
     stream_active_retry_attempt_numbers_.erase(prev_attempt_number);
   }
   stream_active_retry_attempt_numbers_.insert(retry_attempt_number);
-  setStats();
+  setStats(active_retries + active_retry_diff_on_retry, max_active_retries);
   return true;
 };
 
@@ -53,14 +60,14 @@ uint64_t StaticLimits::StreamAdmissionController::getMaxActiveRetries() const {
   return runtime_.snapshot().getInteger(max_active_retries_key_, max_active_retries_);
 }
 
-void StaticLimits::StreamAdmissionController::setStats() {
+void StaticLimits::StreamAdmissionController::setStats(uint64_t active_retries, uint64_t max_active_retries) {
   if (!Runtime::runtimeFeatureEnabled("envoy.reloadable_features.use_retry_admission_control")) {
     return;
   }
-  uint64_t max_active_retries = getMaxActiveRetries();
-  uint64_t retries_remaining = active_retries_->value() > max_active_retries
-                                   ? 0UL
-                                   : max_active_retries - active_retries_->value();
+  uint64_t retries_remaining = 0;
+  if (max_active_retries > active_retries) {
+    retries_remaining = max_active_retries - active_retries;
+  }
   cb_stats_.remaining_retries_.set(retries_remaining);
   cb_stats_.rq_retry_open_.set(retries_remaining > 0 ? 0 : 1);
 }

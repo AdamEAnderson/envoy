@@ -2052,7 +2052,7 @@ envoy::config::core::v3::TypedExtensionConfig ClusterInfoImpl::getRetryAdmission
     retry_admission_control.set_name("envoy.retry_admission_control.static_limits");
     envoy::extensions::retry::admission_control::static_limits::v3::StaticLimitsConfig
         static_limits;
-    static_limits.set_max_concurrent_retries(static_max_retries);
+    static_limits.mutable_max_concurrent_retries()->set_value(static_max_retries);
     retry_admission_control.mutable_typed_config()->PackFrom(static_limits);
     return retry_admission_control;
   }
