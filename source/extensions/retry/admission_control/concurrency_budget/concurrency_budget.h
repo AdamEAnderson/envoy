@@ -12,15 +12,21 @@ namespace AdmissionControl {
 
 class ConcurrencyBudget : public Upstream::RetryAdmissionController {
 public:
-  ConcurrencyBudget(uint64_t min_retry_concurrency_limit, double budget_percent)
-      : min_retry_concurrency_limit_(min_retry_concurrency_limit),
+  ConcurrencyBudget(uint64_t min_retry_concurrency_limit, double budget_percent,
+                    Runtime::Loader& runtime, std::string budget_percent_key,
+                    std::string min_retry_concurrency_limit_key,
+                    Upstream::ClusterCircuitBreakersStats cb_stats)
+      : cb_stats_(cb_stats), runtime_(runtime), budget_percent_key_(budget_percent_key),
+        min_retry_concurrency_limit_key_(min_retry_concurrency_limit_key),
+        min_retry_concurrency_limit_(min_retry_concurrency_limit),
         budget_percent_(budget_percent){};
   ~ConcurrencyBudget() override = default;
 
   Upstream::RetryStreamAdmissionControllerPtr
   createStreamAdmissionController(const StreamInfo::StreamInfo&) override {
     return std::make_unique<StreamAdmissionController>(
-        active_tries_, active_retries_, min_retry_concurrency_limit_, budget_percent_);
+        active_tries_, active_retries_, min_retry_concurrency_limit_, budget_percent_, runtime_,
+        budget_percent_key_, min_retry_concurrency_limit_key_, cb_stats_);
   };
 
 private:
@@ -30,8 +36,13 @@ private:
   public:
     StreamAdmissionController(PrimitiveGaugeSharedPtr active_tries,
                               PrimitiveGaugeSharedPtr active_retries,
-                              uint64_t min_retry_concurrency_limit, double budget_percent)
-        : active_tries_(active_tries), active_retries_(active_retries),
+                              uint64_t min_retry_concurrency_limit, double budget_percent,
+                              Runtime::Loader& runtime, std::string budget_percent_key,
+                              std::string min_retry_concurrency_limit_key,
+                              Upstream::ClusterCircuitBreakersStats cb_stats)
+        : cb_stats_(cb_stats), runtime_(runtime), active_tries_(active_tries),
+          active_retries_(active_retries), budget_percent_key_(budget_percent_key),
+          min_retry_concurrency_limit_key_(min_retry_concurrency_limit_key),
           min_retry_concurrency_limit_(min_retry_concurrency_limit),
           budget_percent_(budget_percent){};
 
@@ -49,17 +60,26 @@ private:
 
   private:
     uint64_t getRetryConcurrencyLimit() const;
+    void setStats();
 
+    Upstream::ClusterCircuitBreakersStats cb_stats_;
+    Runtime::Loader& runtime_;
     PrimitiveGaugeSharedPtr active_tries_;
     PrimitiveGaugeSharedPtr active_retries_;
     std::set<uint64_t> stream_active_retry_attempt_numbers_{};
     uint64_t stream_active_tries_{};
+    const std::string budget_percent_key_;
+    const std::string min_retry_concurrency_limit_key_;
     const uint64_t min_retry_concurrency_limit_;
     const double budget_percent_;
   };
 
+  Upstream::ClusterCircuitBreakersStats cb_stats_;
+  Runtime::Loader& runtime_;
   PrimitiveGaugeSharedPtr active_tries_{};
   PrimitiveGaugeSharedPtr active_retries_{};
+  const std::string budget_percent_key_;
+  const std::string min_retry_concurrency_limit_key_;
   const uint64_t min_retry_concurrency_limit_;
   const double budget_percent_;
 };

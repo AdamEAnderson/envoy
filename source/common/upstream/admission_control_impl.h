@@ -18,13 +18,14 @@ class AdmissionControlImpl : public AdmissionControl {
 public:
   AdmissionControlImpl(const envoy::config::core::v3::TypedExtensionConfig& retry_config,
                        ProtobufMessage::ValidationVisitor& validation_visitor,
-                       Runtime::Loader& runtime) {
+                       Runtime::Loader& runtime, std::string runtime_key_prefix,
+                       ClusterCircuitBreakersStats cb_stats) {
     auto& retry_factory =
         Config::Utility::getAndCheckFactory<RetryAdmissionControllerFactory>(retry_config);
     auto retry_factory_config = Envoy::Config::Utility::translateToFactoryConfig(
         retry_config, validation_visitor, retry_factory);
-    retry_ =
-        retry_factory.createAdmissionController(*retry_factory_config, validation_visitor, runtime);
+    retry_ = retry_factory.createAdmissionController(*retry_factory_config, validation_visitor,
+                                                     runtime, runtime_key_prefix, cb_stats);
   }
 
   RetryAdmissionControllerSharedPtr retry() override { return retry_; }

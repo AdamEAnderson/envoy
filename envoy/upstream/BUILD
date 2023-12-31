@@ -131,6 +131,7 @@ envoy_cc_library(
     name = "admission_control_interface",
     hdrs = ["admission_control.h"],
     deps = [
+        ":stats_interface",
         "//envoy/config:typed_config_interface",
         "//envoy/stream_info:stream_info_interface",
         "//envoy/upstream:types_interface",
@@ -164,6 +165,14 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "stats_interface",
+    hdrs = ["stats.h"],
+    deps = [
+        "//envoy/stats:stats_macros",
+    ],
+)
+
+envoy_cc_library(
     name = "upstream_interface",
     hdrs = ["upstream.h"],
     external_deps = ["abseil_optional"],
@@ -173,6 +182,7 @@ envoy_cc_library(
         ":load_balancer_type_interface",
         ":locality_lib",
         ":resource_manager_interface",
+        ":stats_interface",
         "//envoy/common:callback",
         "//envoy/config:subscription_interface",
         "//envoy/config:typed_metadata_interface",

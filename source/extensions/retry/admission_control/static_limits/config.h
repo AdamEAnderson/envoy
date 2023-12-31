@@ -17,7 +17,8 @@ public:
   Upstream::RetryAdmissionControllerSharedPtr
   createAdmissionController(const Protobuf::Message& config,
                             ProtobufMessage::ValidationVisitor& validation_visitor,
-                            Runtime::Loader& runtime) override;
+                            Runtime::Loader& runtime, std::string runtime_key_prefix,
+                            Upstream::ClusterCircuitBreakersStats cb_stats) override;
 
   std::string name() const override { return "envoy.retry_admission_control.static_limits"; }
 

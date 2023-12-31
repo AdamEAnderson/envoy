@@ -1071,33 +1071,33 @@ private:
   createSingletonUpstreamNetworkFilterConfigProviderManager(
       Server::Configuration::ServerFactoryContext& context);
 
-  struct ResourceManagers {
-    ResourceManagers(const envoy::config::cluster::v3::Cluster& config, Runtime::Loader& runtime,
-                     const std::string& cluster_name, Stats::Scope& stats_scope,
-                     const ClusterCircuitBreakersStatNames& circuit_breakers_stat_names);
-    ResourceManagerImplPtr load(const envoy::config::cluster::v3::Cluster& config,
-                                Runtime::Loader& runtime, const std::string& cluster_name,
-                                Stats::Scope& stats_scope,
-                                const envoy::config::core::v3::RoutingPriority& priority);
+  struct CircuitBreakers {
+    CircuitBreakers(const envoy::config::cluster::v3::Cluster& config, Runtime::Loader& runtime,
+                    const std::string& cluster_name, Stats::Scope& stats_scope,
+                    const ClusterCircuitBreakersStatNames& circuit_breakers_stat_names,
+                    ProtobufMessage::ValidationVisitor& validation_visitor);
+    ClusterCircuitBreakersStats
+    generateStats(const envoy::config::cluster::v3::Cluster& config, Stats::Scope& scope,
+                  const ClusterCircuitBreakersStatNames& names,
+                  const envoy::config::core::v3::RoutingPriority& priority);
+    ResourceManagerImplPtr
+    loadResourceManager(const envoy::config::cluster::v3::Cluster& config, Runtime::Loader& runtime,
+                        const std::string& runtime_key_prefix, ClusterCircuitBreakersStats cb_stats,
+                        const envoy::config::core::v3::RoutingPriority& priority);
+    AdmissionControlImplSharedPtr
+    loadAdmissionControl(const envoy::config::cluster::v3::Cluster& config,
+                         const envoy::config::core::v3::RoutingPriority& priority,
+                         ClusterCircuitBreakersStats cb_stats,
+                         ProtobufMessage::ValidationVisitor& validation_visitor,
+                         Runtime::Loader& runtime, const std::string& runtime_key_prefix);
+    std::string getRuntimeKeyPrefix(const std::string& cluster_name,
+                                    const envoy::config::core::v3::RoutingPriority& priority);
 
-    using Managers = std::array<ResourceManagerImplPtr, NumResourcePriorities>;
+    using ResourceManagers = std::array<ResourceManagerImplPtr, NumResourcePriorities>;
+    using AdmissionControls = std::array<AdmissionControlImplSharedPtr, NumResourcePriorities>;
 
-    Managers managers_;
-    const ClusterCircuitBreakersStatNames& circuit_breakers_stat_names_;
-  };
-
-  struct AdmissionControls {
-    AdmissionControls(const envoy::config::cluster::v3::Cluster& config,
-                      ProtobufMessage::ValidationVisitor& validation_visitor,
-                      Runtime::Loader& runtime);
-    AdmissionControlImplSharedPtr load(const envoy::config::cluster::v3::Cluster& config,
-                                       const envoy::config::core::v3::RoutingPriority& priority,
-                                       ProtobufMessage::ValidationVisitor& validation_visitor,
-                                       Runtime::Loader& runtime);
-
-    using Controls = std::array<AdmissionControlImplSharedPtr, NumResourcePriorities>;
-
-    Controls controls_;
+    ResourceManagers managers_;
+    AdmissionControls controls_;
   };
 
   struct OptionalClusterStats {
@@ -1134,8 +1134,7 @@ private:
   mutable ClusterLoadReportStats load_report_stats_;
   const std::unique_ptr<OptionalClusterStats> optional_cluster_stats_;
   const uint64_t features_;
-  mutable ResourceManagers resource_managers_;
-  mutable AdmissionControls admission_controls_;
+  mutable CircuitBreakers circuit_breakers_;
   const std::string maintenance_mode_runtime_key_;
   UpstreamLocalAddressSelectorConstSharedPtr upstream_local_address_selector_;
   std::unique_ptr<const LBPolicyConfig> lb_policy_config_;

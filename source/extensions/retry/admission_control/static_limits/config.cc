@@ -18,11 +18,14 @@ REGISTER_FACTORY(StaticLimitsFactory, Upstream::RetryAdmissionControllerFactory)
 
 Upstream::RetryAdmissionControllerSharedPtr StaticLimitsFactory::createAdmissionController(
     const Protobuf::Message& config, ProtobufMessage::ValidationVisitor& validation_visitor,
-    Runtime::Loader&) {
+    Runtime::Loader& runtime, std::string runtime_key_prefix,
+    Upstream::ClusterCircuitBreakersStats cb_stats) {
   const auto& static_limits_config = MessageUtil::downcastAndValidate<
       const envoy::extensions::retry::admission_control::static_limits::v3::StaticLimitsConfig&>(
       config, validation_visitor);
-  return std::make_shared<StaticLimits>(static_limits_config.max_concurrent_retries());
+  std::string max_active_retries_key = runtime_key_prefix + "max_retries";
+  return std::make_shared<StaticLimits>(static_limits_config.max_concurrent_retries(), runtime,
+                                        max_active_retries_key, cb_stats);
 }
 
 } // namespace AdmissionControl

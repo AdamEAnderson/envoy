@@ -8,6 +8,7 @@
 #include "envoy/common/pure.h"
 #include "envoy/config/typed_config.h"
 #include "envoy/stream_info/stream_info.h"
+#include "envoy/upstream/stats.h"
 
 #include "source/common/protobuf/message_validator_impl.h"
 
@@ -148,7 +149,8 @@ public:
   virtual RetryAdmissionControllerSharedPtr
   createAdmissionController(const Protobuf::Message& config,
                             ProtobufMessage::ValidationVisitor& validation_visitor,
-                            Runtime::Loader& runtime) PURE;
+                            Runtime::Loader& runtime, std::string runtime_key_prefix,
+                            ClusterCircuitBreakersStats cb_stats) PURE;
 
   std::string category() const override { return "envoy.retry_admission_control"; }
 };
