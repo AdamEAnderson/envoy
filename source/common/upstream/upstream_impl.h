@@ -59,6 +59,7 @@
 #include "source/common/network/utility.h"
 #include "source/common/shared_pool/shared_pool.h"
 #include "source/common/stats/isolated_store_impl.h"
+#include "source/common/upstream/admission_control_impl.h"
 #include "source/common/upstream/load_balancer_impl.h"
 #include "source/common/upstream/resource_manager_impl.h"
 #include "source/common/upstream/transport_socket_match_impl.h"
@@ -69,7 +70,6 @@
 
 #include "absl/container/node_hash_set.h"
 #include "absl/synchronization/mutex.h"
-#include "admission_control_impl.h"
 
 namespace Envoy {
 namespace Upstream {

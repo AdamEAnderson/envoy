@@ -1,5 +1,7 @@
 #include "admission_control.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -17,13 +19,16 @@ MockRetryStreamAdmissionController::MockRetryStreamAdmissionController() {
 MockRetryStreamAdmissionController::~MockRetryStreamAdmissionController() = default;
 
 MockRetryAdmissionController::MockRetryAdmissionController()
-    : stream_admission_controller_ptr_(
-          std::make_unique<NiceMock<MockRetryStreamAdmissionController>>()),
-      stream_admission_controller_(*stream_admission_controller_ptr_) {
+    : stream_admission_controller_(
+          std::make_unique<NiceMock<MockRetryStreamAdmissionController>>()) {
   ON_CALL(*this, createStreamAdmissionController(_))
-      .WillByDefault(
-          Invoke([this](const StreamInfo::StreamInfo&) -> RetryStreamAdmissionControllerPtr {
-            return std::move(stream_admission_controller_ptr_);
+      .WillByDefault(Invoke(
+          [this](const StreamInfo::StreamInfo&) mutable -> RetryStreamAdmissionControllerPtr {
+            // shuffle things around so we don't hold onto a ref to the old ptr
+            auto ptr = std::move(stream_admission_controller_);
+            stream_admission_controller_ =
+                std::make_unique<NiceMock<MockRetryStreamAdmissionController>>();
+            return ptr;
           }));
 };
 

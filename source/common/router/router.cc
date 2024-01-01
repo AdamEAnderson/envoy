@@ -38,11 +38,10 @@
 #include "source/common/router/config_impl.h"
 #include "source/common/router/debug_config.h"
 #include "source/common/router/retry_state_impl.h"
+#include "source/common/router/upstream_request.h"
 #include "source/common/runtime/runtime_features.h"
 #include "source/common/stream_info/uint32_accessor_impl.h"
 #include "source/common/tracing/http_tracer_impl.h"
-
-#include "upstream_request.h"
 
 namespace Envoy {
 namespace Router {

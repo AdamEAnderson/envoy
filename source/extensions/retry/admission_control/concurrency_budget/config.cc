@@ -1,4 +1,4 @@
-#include "config.h"
+#include "source/extensions/retry/admission_control/concurrency_budget/config.h"
 
 #include "envoy/registry/registry.h"
 

@@ -1,4 +1,4 @@
-#include "config.h"
+#include "source/extensions/retry/admission_control/static_limits/config.h"
 
 #include "envoy/extensions/retry/admission_control/static_limits/v3/static_limits_config.pb.h"
 #include "envoy/registry/registry.h"
@@ -6,8 +6,7 @@
 
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/utility.h"
-
-#include "static_limits.h"
+#include "source/extensions/retry/admission_control/static_limits/static_limits.h"
 
 namespace Envoy {
 namespace Extensions {

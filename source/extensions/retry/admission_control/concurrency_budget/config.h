@@ -5,7 +5,7 @@
 #include "envoy/extensions/retry/admission_control/concurrency_budget/v3/concurrency_budget_config.pb.validate.h"
 #include "envoy/upstream/admission_control.h"
 
-#include "concurrency_budget.h"
+#include "source/extensions/retry/admission_control/concurrency_budget/concurrency_budget.h"
 
 namespace Envoy {
 namespace Extensions {

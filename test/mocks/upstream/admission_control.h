@@ -35,11 +35,11 @@ public:
   MOCK_METHOD(RetryStreamAdmissionControllerPtr, createStreamAdmissionController,
               (const StreamInfo::StreamInfo&));
 
-private:
-  MockRetryStreamAdmissionControllerPtr stream_admission_controller_ptr_;
-
 public:
-  NiceMock<MockRetryStreamAdmissionController>& stream_admission_controller_;
+  // Note that by default this will get re-initialized on each call to
+  // createStreamAdmissionController to avoid sharing. To change the behavior, you can override the
+  // default behavior for createStreamAdmissionController.
+  MockRetryStreamAdmissionControllerPtr stream_admission_controller_;
 };
 
 using MockRetryAdmissionControllerSharedPtr =
