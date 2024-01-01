@@ -6784,7 +6784,7 @@ TEST_P(RouterRetryAdmissionControlTest, RetryAdmissionControlHedgeOnPerTryTimeou
   }
   router_->retry_state_->callback_();
 
-  // While try 2 is waiting for a response from upstream, try 1 gets a successfull response
+  // While try 2 is waiting for a response from upstream, try 1 gets a successful response
   Http::ResponseHeaderMapPtr response_headers(
       new Http::TestResponseHeaderMapImpl{{":status", "200"}});
   EXPECT_CALL(callbacks_, encodeHeaders_(_, _))
