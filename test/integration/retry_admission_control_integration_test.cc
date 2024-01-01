@@ -35,6 +35,8 @@ TEST_P(RetryAdmissionControlIntegrationTest, BlockAllRetries) {
         auto* retry_policy =
             hcm.mutable_route_config()->mutable_virtual_hosts(0)->mutable_retry_policy();
         retry_policy->set_retry_on("5xx");
+        retry_policy->mutable_retry_back_off()->mutable_base_interval()->set_nanos(
+            1000000); // min backoff
       });
 
   initialize();
@@ -78,6 +80,8 @@ TEST_P(RetryAdmissionControlIntegrationTest, AllowAllRetries) {
             hcm.mutable_route_config()->mutable_virtual_hosts(0)->mutable_retry_policy();
         retry_policy->set_retry_on("5xx");
         retry_policy->mutable_num_retries()->set_value(100);
+        retry_policy->mutable_retry_back_off()->mutable_base_interval()->set_nanos(
+            1000000); // min backoff
       });
 
   initialize();
@@ -125,6 +129,8 @@ TEST_P(RetryAdmissionControlIntegrationTest, DiableViaRuntimeFeatureGuard) {
         auto* retry_policy =
             hcm.mutable_route_config()->mutable_virtual_hosts(0)->mutable_retry_policy();
         retry_policy->set_retry_on("5xx");
+        retry_policy->mutable_retry_back_off()->mutable_base_interval()->set_nanos(
+            1000000); // min backoff
       });
 
   initialize();
